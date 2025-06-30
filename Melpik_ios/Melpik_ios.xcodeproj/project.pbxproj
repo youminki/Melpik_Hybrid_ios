@@ -24,7 +24,7 @@
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
-		D7040DA32E123DB500860243 /* Melpik_ios.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Melpik_ios.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		D7040DA32E123DB500860243 /* Melpik.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Melpik.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D7040DB32E123DB700860243 /* Melpik_iosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Melpik_iosTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D7040DBD2E123DB700860243 /* Melpik_iosUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Melpik_iosUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -85,7 +85,7 @@
 		D7040DA42E123DB500860243 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				D7040DA32E123DB500860243 /* Melpik_ios.app */,
+				D7040DA32E123DB500860243 /* Melpik.app */,
 				D7040DB32E123DB700860243 /* Melpik_iosTests.xctest */,
 				D7040DBD2E123DB700860243 /* Melpik_iosUITests.xctest */,
 			);
@@ -114,7 +114,7 @@
 			packageProductDependencies = (
 			);
 			productName = Melpik_ios;
-			productReference = D7040DA32E123DB500860243 /* Melpik_ios.app */;
+			productReference = D7040DA32E123DB500860243 /* Melpik.app */;
 			productType = "com.apple.product-type.application";
 		};
 		D7040DB22E123DB700860243 /* Melpik_iosTests */ = {
@@ -396,24 +396,25 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Melpik_ios/Preview Content\"";
+				DEVELOPMENT_TEAM = VFU22GCDDB;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_me1pik_com_NSExceptionAllowsInsecureHTTPLoads = YES;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_me1pik_com_NSExceptionMinimumTLSVersion = 1.0;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_me1pik_com_NSIncludesSubdomains = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_me1pik_com_NSExceptionAllowsInsecureHTTPLoads = YES;
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_me1pik_com_NSExceptionMinimumTLSVersion = "1.0";
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_me1pik_com_NSIncludesSubdomains = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.melpik.hybrid";
-				PRODUCT_NAME = "Melpik";
+				PRODUCT_BUNDLE_IDENTIFIER = com.melpik.hybrid;
+				PRODUCT_NAME = Melpik;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -428,24 +429,25 @@
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"Melpik_ios/Preview Content\"";
+				DEVELOPMENT_TEAM = VFU22GCDDB;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_me1pik_com_NSExceptionAllowsInsecureHTTPLoads = YES;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_me1pik_com_NSExceptionMinimumTLSVersion = 1.0;
+				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_me1pik_com_NSIncludesSubdomains = YES;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
 				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_NSAppTransportSecurity_NSAllowsArbitraryLoads = YES;
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_me1pik_com_NSExceptionAllowsInsecureHTTPLoads = YES;
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_me1pik_com_NSExceptionMinimumTLSVersion = "1.0";
-				INFOPLIST_KEY_NSAppTransportSecurity_NSExceptionDomains_me1pik_com_NSIncludesSubdomains = YES;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.melpik.hybrid";
-				PRODUCT_NAME = "Melpik";
+				PRODUCT_BUNDLE_IDENTIFIER = com.melpik.hybrid;
+				PRODUCT_NAME = Melpik;
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -461,7 +463,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.melpik.hybridTests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.melpik.hybridTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
@@ -479,7 +481,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				IPHONEOS_DEPLOYMENT_TARGET = 18.0;
 				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = "com.melpik.hybridTests";
+				PRODUCT_BUNDLE_IDENTIFIER = com.melpik.hybridTests;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
 				SWIFT_VERSION = 5.0;
