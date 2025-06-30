@@ -22,6 +22,7 @@ struct ContentView: View {
     @StateObject private var appState = AppStateManager()
     @StateObject private var locationManager = LocationManager()
     @StateObject private var networkMonitor = NetworkMonitor()
+    @StateObject private var loginManager = LoginManager()
     
     @State private var isLoading = true
     @State private var canGoBack = false
@@ -48,6 +49,7 @@ struct ContentView: View {
                 appState: appState,
                 locationManager: locationManager,
                 networkMonitor: networkMonitor,
+                loginManager: loginManager,
                 onImagePicker: { showingImagePicker = true },
                 onCamera: { showingCamera = true },
                 onShare: { url in
@@ -88,6 +90,11 @@ struct ContentView: View {
                 sendPushTokenToWeb(token: token)
             }
         }
+        .onReceive(loginManager.$isLoggedIn) { isLoggedIn in
+            if isLoggedIn {
+                sendLoginInfoToWeb()
+            }
+        }
     }
     
     // MARK: - Loading Overlay
@@ -126,6 +133,11 @@ struct ContentView: View {
     private func sendPushTokenToWeb(token: String) {
         let script = "window.dispatchEvent(new CustomEvent('pushTokenReceived', { detail: '\(token)' }));"
         webViewStore.webView.evaluateJavaScript(script)
+    }
+    
+    private func sendLoginInfoToWeb() {
+        loginManager.sendLoginInfoToWeb(webView: webViewStore.webView)
+    }
 }
 
 // MARK: - WebView
@@ -134,6 +146,15 @@ struct WebView: UIViewRepresentable {
     @Binding var isLoading: Bool
     @Binding var canGoBack: Bool
     @Binding var canGoForward: Bool
+    
+    let appState: AppStateManager
+    let locationManager: LocationManager
+    let networkMonitor: NetworkMonitor
+    let loginManager: LoginManager
+    let onImagePicker: () -> Void
+    let onCamera: () -> Void
+    let onShare: (URL) -> Void
+    let onSafari: (URL) -> Void
     
     func makeUIView(context: Context) -> WKWebView {
         // 웹뷰 설정
@@ -237,6 +258,33 @@ struct WebView: UIViewRepresentable {
                 });
             },
             
+            // 로그인 관련
+            saveLoginInfo: function(loginData) {
+                window.webkit.messageHandlers.nativeBridge.postMessage({
+                    action: 'saveLoginInfo',
+                    loginData: loginData
+                });
+            },
+            
+            getLoginInfo: function() {
+                window.webkit.messageHandlers.nativeBridge.postMessage({
+                    action: 'getLoginInfo'
+                });
+            },
+            
+            logout: function() {
+                window.webkit.messageHandlers.nativeBridge.postMessage({
+                    action: 'logout'
+                });
+            },
+            
+            setAutoLogin: function(enabled) {
+                window.webkit.messageHandlers.nativeBridge.postMessage({
+                    action: 'setAutoLogin',
+                    enabled: enabled
+                });
+            },
+            
             // 하이브백
             goBack: function() {
                 window.webkit.messageHandlers.nativeBridge.postMessage({
@@ -275,6 +323,11 @@ struct WebView: UIViewRepresentable {
             parent.isLoading = false
             parent.canGoBack = webView.canGoBack
             parent.canGoForward = webView.canGoForward
+            
+            // 웹뷰 로딩 완료 시 로그인 정보 전달
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                self.parent.loginManager.sendLoginInfoToWeb(webView: webView)
+            }
         }
         
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
@@ -344,6 +397,24 @@ struct WebView: UIViewRepresentable {
                 let script = "window.dispatchEvent(new CustomEvent('appInfoReceived', { detail: \(appInfo) }));"
                 parent.webView.evaluateJavaScript(script)
                 
+            case "saveLoginInfo":
+                if let loginData = body["loginData"] as? [String: Any] {
+                    parent.loginManager.saveLoginInfo(loginData)
+                }
+                
+            case "getLoginInfo":
+                let loginInfo = parent.loginManager.getLoginInfo()
+                let script = "window.dispatchEvent(new CustomEvent('loginInfoReceived', { detail: \(loginInfo) }));"
+                parent.webView.evaluateJavaScript(script)
+                
+            case "logout":
+                parent.loginManager.logout()
+                
+            case "setAutoLogin":
+                if let enabled = body["enabled"] as? Bool {
+                    parent.loginManager.setAutoLogin(enabled: enabled)
+                }
+                
             case "goBack":
                 if parent.webView.canGoBack {
                     parent.webView.goBack()
@@ -382,9 +453,9 @@ class WebViewStore: ObservableObject {
     }
     
     deinit {
-        // 메모리 정리
-        webView.stopLoading()
-        webView.loadHTMLString("", baseURL: nil)
+        // 메모리 정리 (Swift 6에서는 self 캡처 불가, 별도 정리 불필요)
+        // webView.stopLoading()
+        // webView.loadHTMLString("", baseURL: nil)
     }
 }
 
