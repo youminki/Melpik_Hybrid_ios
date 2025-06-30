@@ -36,8 +36,8 @@ struct ContentView: View {
     
     var body: some View {
         VStack(spacing: 0) {
-            // 빈 헤더 영역
-            Color.clear
+            // 상단 헤더 영역
+            Color(.systemBackground)
                 .frame(height: Constants.headerHeight)
             
             // 웹뷰
