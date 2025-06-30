@@ -98,3 +98,139 @@ Melpik_ios/
 ## 라이선스
 
 이 프로젝트는 Melpik 팀을 위해 개발되었습니다.
+
+## 주요 기능
+
+### 🔐 로그인 상태 유지
+
+- Keychain을 사용한 안전한 토큰 저장
+- 자동 로그인 기능
+- 생체 인증 지원 (Face ID, Touch ID)
+- 토큰 만료 시 자동 갱신
+
+### 📱 네이티브 기능
+
+- 푸시 알림
+- 위치 서비스
+- 카메라/갤러리 접근
+- 공유 기능
+- Safari 연동
+- 네트워크 상태 모니터링
+
+## 웹에서 사용하는 방법
+
+### 로그인 관련 JavaScript API
+
+```javascript
+// 1. 로그인 정보 저장 (로그인 성공 시)
+window.nativeApp.saveLoginInfo({
+  id: "user123",
+  email: "user@example.com",
+  name: "사용자명",
+  token: "access_token_here",
+  refreshToken: "refresh_token_here", // 선택사항
+  expiresAt: "2024-12-31T23:59:59Z", // 선택사항
+});
+
+// 2. 저장된 로그인 정보 가져오기
+window.nativeApp.getLoginInfo();
+
+// 3. 로그아웃
+window.nativeApp.logout();
+
+// 4. 자동 로그인 설정
+window.nativeApp.setAutoLogin(true); // 활성화
+window.nativeApp.setAutoLogin(false); // 비활성화
+
+// 5. 로그인 정보 수신 이벤트 리스너
+window.addEventListener("loginInfoReceived", function (event) {
+  const loginInfo = event.detail;
+  console.log("로그인 상태:", loginInfo.isLoggedIn);
+  console.log("사용자 정보:", loginInfo.userInfo);
+
+  if (loginInfo.isLoggedIn) {
+    // 로그인된 상태 처리
+    updateUIForLoggedInUser(loginInfo.userInfo);
+  } else {
+    // 로그아웃된 상태 처리
+    updateUIForLoggedOutUser();
+  }
+});
+```
+
+### 로그인 플로우 예시
+
+```javascript
+// 로그인 성공 시
+async function handleLoginSuccess(loginResponse) {
+  // 네이티브 앱에 로그인 정보 저장
+  window.nativeApp.saveLoginInfo({
+    id: loginResponse.user.id,
+    email: loginResponse.user.email,
+    name: loginResponse.user.name,
+    token: loginResponse.accessToken,
+    refreshToken: loginResponse.refreshToken,
+    expiresAt: loginResponse.expiresAt,
+  });
+
+  // UI 업데이트
+  updateUIForLoggedInUser(loginResponse.user);
+}
+
+// 앱 시작 시 로그인 상태 확인
+document.addEventListener("DOMContentLoaded", function () {
+  // 저장된 로그인 정보 요청
+  window.nativeApp.getLoginInfo();
+});
+
+// 로그아웃 처리
+function handleLogout() {
+  window.nativeApp.logout();
+  updateUIForLoggedOutUser();
+}
+```
+
+### 기타 네이티브 기능
+
+```javascript
+// 푸시 알림 권한 요청
+window.nativeApp.requestPushPermission();
+
+// 위치 정보 가져오기
+window.nativeApp.getLocation();
+
+// 생체 인증
+window.nativeApp.authenticateWithBiometrics();
+
+// 카메라 열기
+window.nativeApp.openCamera();
+
+// 갤러리 열기
+window.nativeApp.openImagePicker();
+
+// 링크 공유
+window.nativeApp.share("https://example.com");
+
+// Safari에서 열기
+window.nativeApp.openInSafari("https://example.com");
+
+// 네트워크 상태 확인
+window.nativeApp.getNetworkStatus();
+
+// 앱 정보 가져오기
+window.nativeApp.getAppInfo();
+```
+
+## 보안 기능
+
+- **Keychain**: 민감한 정보(토큰)를 안전하게 저장
+- **생체 인증**: Face ID/Touch ID를 통한 추가 보안
+- **토큰 만료 관리**: 자동 토큰 갱신 및 만료 처리
+- **자동 로그인**: 사용자 선택에 따른 자동 로그인 기능
+
+## 개발 환경
+
+- iOS 15.0+
+- SwiftUI
+- WebKit
+- Xcode 15.0+
