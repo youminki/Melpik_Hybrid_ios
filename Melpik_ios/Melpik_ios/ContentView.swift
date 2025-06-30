@@ -8,78 +8,61 @@
 import SwiftUI
 import WebKit
 
+// MARK: - Constants
+private enum Constants {
+    static let headerHeight: CGFloat = 60
+    static let loadingSpinnerScale: CGFloat = 1.2
+    static let loadingTextSize: CGFloat = 16
+    static let initialURL = "https://me1pik.com/landing"
+}
+
+// MARK: - ContentView
 struct ContentView: View {
+    @StateObject private var webViewStore = WebViewStore()
     @State private var isLoading = true
     @State private var canGoBack = false
     @State private var canGoForward = false
     
     var body: some View {
-        NavigationView {
-            VStack(spacing: 0) {
-                // 상단 네비게이션 바
-                HStack {
-                    Button(action: {
-                        webViewStore.webView.goBack()
-                    }) {
-                        Image(systemName: "chevron.left")
-                            .foregroundColor(canGoBack ? .blue : .gray)
-                    }
-                    .disabled(!canGoBack)
-                    
-                    Button(action: {
-                        webViewStore.webView.goForward()
-                    }) {
-                        Image(systemName: "chevron.right")
-                            .foregroundColor(canGoForward ? .blue : .gray)
-                    }
-                    .disabled(!canGoForward)
-                    
-                    Spacer()
-                    
-                    Button(action: {
-                        webViewStore.webView.reload()
-                    }) {
-                        Image(systemName: "arrow.clockwise")
-                            .foregroundColor(.blue)
-                    }
-                    
-                    Button(action: {
-                        webViewStore.webView.load(URLRequest(url: URL(string: "https://me1pik.com/landing")!))
-                    }) {
-                        Image(systemName: "house")
-                            .foregroundColor(.blue)
-                    }
-                }
-                .padding(.horizontal)
-                .padding(.vertical, 8)
-                .background(Color(.systemGray6))
-                
-                // 웹뷰
-                WebView(webView: webViewStore.webView, isLoading: $isLoading, canGoBack: $canGoBack, canGoForward: $canGoForward)
-                    .overlay(
-                        Group {
-                            if isLoading {
-                                VStack {
-                                    ProgressView()
-                                        .scaleEffect(1.5)
-                                    Text("로딩 중...")
-                                        .foregroundColor(.gray)
-                                        .padding(.top, 8)
-                                }
-                                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                                .background(Color(.systemBackground))
-                            }
-                        }
-                    )
-            }
-            .navigationBarHidden(true)
+        VStack(spacing: 0) {
+            // 빈 헤더 영역
+            Color.clear
+                .frame(height: Constants.headerHeight)
+            
+            // 웹뷰
+            WebView(
+                webView: webViewStore.webView,
+                isLoading: $isLoading,
+                canGoBack: $canGoBack,
+                canGoForward: $canGoForward
+            )
+            .overlay(loadingOverlay)
         }
-        .navigationViewStyle(StackNavigationViewStyle())
+        .ignoresSafeArea(.all, edges: .all)
+        .statusBarHidden(true)
+        .navigationBarHidden(true)
     }
     
-    @StateObject private var webViewStore = WebViewStore()
+    // MARK: - Loading Overlay
+    @ViewBuilder
+    private var loadingOverlay: some View {
+        if isLoading {
+            VStack(spacing: 12) {
+                ProgressView()
+                    .scaleEffect(Constants.loadingSpinnerScale)
+                    .progressViewStyle(CircularProgressViewStyle(tint: .blue))
+                
+                Text("로딩 중...")
+                    .font(.system(size: Constants.loadingTextSize, weight: .medium))
+                    .foregroundColor(.secondary)
+            }
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
+            .background(Color(.systemBackground))
+        }
+    }
 }
 
+// MARK: - WebView
 struct WebView: UIViewRepresentable {
     let webView: WKWebView
     @Binding var isLoading: Bool
@@ -87,32 +70,40 @@ struct WebView: UIViewRepresentable {
     @Binding var canGoForward: Bool
     
     func makeUIView(context: Context) -> WKWebView {
+        // 웹뷰 설정
         webView.navigationDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
         
+        // 웹뷰 상단 여백 제거
+        webView.scrollView.contentInsetAdjustmentBehavior = .never
+        webView.scrollView.contentInset = .zero
+        webView.scrollView.scrollIndicatorInsets = .zero
+        
         // 초기 URL 로드
-        if let url = URL(string: "https://me1pik.com/landing") {
-            webView.load(URLRequest(url: url))
-        }
+        guard let url = URL(string: Constants.initialURL) else { return webView }
+        webView.load(URLRequest(url: url))
         
         return webView
     }
     
     func updateUIView(_ uiView: WKWebView, context: Context) {
-        // 업데이트가 필요한 경우 여기에 구현
+        // UI 업데이트가 필요한 경우에만 구현
     }
     
     func makeCoordinator() -> Coordinator {
         Coordinator(self)
     }
     
+    // MARK: - Coordinator
     class Coordinator: NSObject, WKNavigationDelegate {
-        var parent: WebView
+        private var parent: WebView
         
         init(_ parent: WebView) {
             self.parent = parent
+            super.init()
         }
         
+        // MARK: - WKNavigationDelegate
         func webView(_ webView: WKWebView, didStartProvisionalNavigation navigation: WKNavigation!) {
             parent.isLoading = true
         }
@@ -133,6 +124,8 @@ struct WebView: UIViewRepresentable {
     }
 }
 
+// MARK: - WebViewStore
+@MainActor
 class WebViewStore: ObservableObject {
     let webView: WKWebView
     
@@ -141,11 +134,26 @@ class WebViewStore: ObservableObject {
         configuration.allowsInlineMediaPlayback = true
         configuration.mediaTypesRequiringUserActionForPlayback = []
         
+        // 성능 최적화 설정
+        configuration.websiteDataStore = WKWebsiteDataStore.default()
+        configuration.processPool = WKProcessPool()
+        
         webView = WKWebView(frame: .zero, configuration: configuration)
         webView.scrollView.bounces = false
+        
+        // 추가 성능 최적화
+        webView.scrollView.showsVerticalScrollIndicator = false
+        webView.scrollView.showsHorizontalScrollIndicator = false
+    }
+    
+    deinit {
+        // 메모리 정리
+        webView.stopLoading()
+        webView.loadHTMLString("", baseURL: nil)
     }
 }
 
+// MARK: - Preview
 #Preview {
     ContentView()
 }
