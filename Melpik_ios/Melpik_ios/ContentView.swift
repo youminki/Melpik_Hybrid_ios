@@ -10,10 +10,10 @@ import WebKit
 
 // MARK: - Constants
 private enum Constants {
-    static let headerHeight: CGFloat = 60
+    static let headerHeight: CGFloat = 50
     static let loadingSpinnerScale: CGFloat = 1.2
     static let loadingTextSize: CGFloat = 16
-    static let initialURL = "https://me1pik.com/landing"
+    static let initialURL = "https://me1pik.com"
 }
 
 // MARK: - ContentView
