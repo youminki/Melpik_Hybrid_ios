@@ -33,6 +33,7 @@ struct ContentView: View {
     @State private var showingSafari = false
     @State private var selectedImage: UIImage?
     @State private var shareURL: URL?
+    @State private var showingAlert = false
     
     var body: some View {
         VStack(spacing: 0) {
@@ -82,6 +83,11 @@ struct ContentView: View {
                 SafariView(url: url)
             }
         }
+        .alert("제목", isPresented: $showingAlert) {
+            Button("확인", role: .cancel) { }
+        } message: {
+            Text("메시지")
+        }
         .onAppear {
             setupApp()
         }
@@ -91,6 +97,7 @@ struct ContentView: View {
             }
         }
         .onReceive(loginManager.$isLoggedIn) { isLoggedIn in
+            print("isLoggedIn changed: \(isLoggedIn)")
             if isLoggedIn {
                 sendLoginInfoToWeb()
             }
@@ -136,6 +143,7 @@ struct ContentView: View {
     }
     
     private func sendLoginInfoToWeb() {
+        print("sendLoginInfoToWeb called")
         loginManager.sendLoginInfoToWeb(webView: webViewStore.webView)
     }
 }
@@ -312,6 +320,8 @@ struct WebView: UIViewRepresentable {
         init(_ parent: WebView) {
             self.parent = parent
             super.init()
+            print("LoginManager init")
+            parent.loginManager.loadLoginState()
         }
         
         // MARK: - WKNavigationDelegate
@@ -326,7 +336,7 @@ struct WebView: UIViewRepresentable {
             
             // 웹뷰 로딩 완료 시 로그인 정보 전달
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.parent.loginManager.sendLoginInfoToWeb(webView: webView)
+                self.parent.loginManager.sendLoginInfoToWeb(webView: self.parent.webView)
             }
         }
         

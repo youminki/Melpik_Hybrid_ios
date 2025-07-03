@@ -8,11 +8,17 @@
 import SwiftUI
 import UserNotifications
 import LocalAuthentication
+import Security
+import Foundation
+import WebKit
 
 @MainActor
 class AppStateManager: ObservableObject {
     @Published var pushToken: String?
     @Published var isBiometricAvailable = false
+    
+    let userDefaults = UserDefaults.standard
+    let loginManager = LoginManager()
     
     func requestPushNotificationPermission() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
@@ -58,5 +64,70 @@ class AppStateManager: ObservableObject {
             "systemVersion": "\(UIDevice.current.systemVersion)"
         }
         """
+    }
+    
+    private func loadLoginState() {
+        print("loadLoginState called")
+        let autoLoginEnabled = userDefaults.bool(forKey: "autoLoginEnabled")
+        let userId = userDefaults.string(forKey: "userId")
+        let userEmail = userDefaults.string(forKey: "userEmail")
+        let userName = userDefaults.string(forKey: "userName")
+        let expiresAt = userDefaults.object(forKey: "tokenExpiresAt")
+        let accessToken = loadFromKeychain(key: "accessToken")
+        let refreshToken = loadFromKeychain(key: "refreshToken")
+        print("autoLoginEnabled:", autoLoginEnabled)
+        print("userId:", userId)
+        print("userEmail:", userEmail)
+        print("userName:", userName)
+        print("expiresAt:", expiresAt)
+        print("accessToken:", accessToken)
+        print("refreshToken:", refreshToken)
+        // ... 이하 생략 ...
+    }
+    
+    func loadFromKeychain(key: String) -> String? {
+        let query: [String: Any] = [
+            kSecClass as String: kSecClassGenericPassword,
+            kSecAttrService as String: "com.melpik.app.login",
+            kSecAttrAccount as String: key,
+            kSecReturnData as String: true,
+            kSecMatchLimit as String: kSecMatchLimitOne
+        ]
+        var result: AnyObject?
+        let status = SecItemCopyMatching(query as CFDictionary, &result)
+        if status == errSecSuccess,
+           let data = result as? Data,
+           let string = String(data: data, encoding: .utf8) {
+            return string
+        }
+        return nil
+    }
+    
+    func saveLoginState(userInfo: UserInfo) {
+        print("saveLoginState called, userInfo: \(userInfo)")
+        print("[saveLoginState] userId: \(userInfo.id)")
+        print("[saveLoginState] accessToken: \(userInfo.token)")
+        print("[saveLoginState] isTokenExpired: \(userInfo.isTokenExpired)")
+        // ... 이하 생략 ...
+    }
+}
+
+// WKScriptMessageHandler는 WebView의 Coordinator에서 구현하는 것이 좋습니다.
+class WebViewCoordinator: NSObject, WKScriptMessageHandler {
+    let loginManager: LoginManager
+
+    init(loginManager: LoginManager) {
+        self.loginManager = loginManager
+    }
+
+    func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
+        print("WKScriptMessageHandler didReceive: \(message.body)")
+        guard let body = message.body as? [String: Any],
+              let action = body["action"] as? String else { return }
+        if action == "saveLoginInfo" {
+            if let loginData = body["loginData"] as? [String: Any] {
+                loginManager.saveLoginInfo(loginData)
+            }
+        }
     }
 } 

@@ -9,6 +9,7 @@ import SwiftUI
 import Security
 import LocalAuthentication
 import WebKit
+import Foundation
 
 @MainActor
 class LoginManager: ObservableObject {
@@ -19,26 +20,13 @@ class LoginManager: ObservableObject {
     private let keychainService = "com.melpik.app.login"
     private let userDefaults = UserDefaults.standard
     
-    struct UserInfo: Codable {
-        let id: String
-        let email: String
-        let name: String
-        let token: String
-        let refreshToken: String?
-        let expiresAt: Date?
-        
-        var isTokenExpired: Bool {
-            guard let expiresAt = expiresAt else { return false }
-            return Date() > expiresAt
-        }
-    }
-    
     init() {
         loadLoginState()
     }
     
     // MARK: - 로그인 상태 저장
     func saveLoginState(userInfo: UserInfo) {
+        print("saveLoginState called, userInfo: \(userInfo)")
         self.userInfo = userInfo
         self.isLoggedIn = true
         
@@ -59,14 +47,36 @@ class LoginManager: ObservableObject {
         
         // 자동 로그인 설정 저장
         userDefaults.set(true, forKey: "autoLoginEnabled")
+        userDefaults.synchronize()
+        print("[saveLoginState] isLoggedIn:", isLoggedIn)
+        print("[saveLoginState] userId:", userDefaults.string(forKey: "userId"))
+        print("[saveLoginState] userEmail:", userDefaults.string(forKey: "userEmail"))
+        print("[saveLoginState] userName:", userDefaults.string(forKey: "userName"))
+        print("[saveLoginState] expiresAt:", userDefaults.object(forKey: "tokenExpiresAt"))
+        print("[saveLoginState] accessToken:", loadFromKeychain(key: "accessToken"))
+        print("[saveLoginState] refreshToken:", loadFromKeychain(key: "refreshToken"))
     }
     
     // MARK: - 로그인 상태 복원
-    private func loadLoginState() {
+    func loadLoginState() {
+        print("loadLoginState called")
         isLoading = true
         
         // 자동 로그인이 활성화되어 있는지 확인
         let autoLoginEnabled = userDefaults.bool(forKey: "autoLoginEnabled")
+        let userId = userDefaults.string(forKey: "userId")
+        let userEmail = userDefaults.string(forKey: "userEmail")
+        let userName = userDefaults.string(forKey: "userName")
+        let expiresAt = userDefaults.object(forKey: "tokenExpiresAt")
+        let accessToken = loadFromKeychain(key: "accessToken")
+        let refreshToken = loadFromKeychain(key: "refreshToken")
+        print("[loadLoginState] autoLoginEnabled:", autoLoginEnabled)
+        print("[loadLoginState] userId:", userId)
+        print("[loadLoginState] userEmail:", userEmail)
+        print("[loadLoginState] userName:", userName)
+        print("[loadLoginState] expiresAt:", expiresAt)
+        print("[loadLoginState] accessToken:", accessToken)
+        print("[loadLoginState] refreshToken:", refreshToken)
         
         if autoLoginEnabled {
             // Keychain에서 토큰 복원
