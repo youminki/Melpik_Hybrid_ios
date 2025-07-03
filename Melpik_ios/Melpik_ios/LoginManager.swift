@@ -143,7 +143,7 @@ class LoginManager: ObservableObject {
     }
     
     // MARK: - 자동 로그인 설정
-    private func setAutoLogin(enabled: Bool) {
+    func setAutoLogin(enabled: Bool) {
         userDefaults.set(enabled, forKey: "autoLoginEnabled")
     }
     
