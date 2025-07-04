@@ -231,6 +231,30 @@ class LoginManager: ObservableObject {
     
     // MARK: - 웹에서 받은 로그인 데이터 처리
     func saveLoginInfo(_ loginData: [String: Any]) {
+        print("saveLoginInfo called with data: \(loginData)")
+        
+        // UserDefaults를 사용하여 토큰 저장
+        if let token = loginData["token"] as? String {
+            userDefaults.set(token, forKey: "accessToken")
+        }
+        if let refreshToken = loginData["refreshToken"] as? String {
+            userDefaults.set(refreshToken, forKey: "refreshToken")
+        }
+        if let email = loginData["email"] as? String {
+            userDefaults.set(email, forKey: "userEmail")
+        }
+        if let id = loginData["id"] as? String {
+            userDefaults.set(id, forKey: "userId")
+        }
+        if let name = loginData["name"] as? String {
+            userDefaults.set(name, forKey: "userName")
+        }
+        
+        // 자동 로그인 활성화
+        userDefaults.set(true, forKey: "autoLoginEnabled")
+        userDefaults.synchronize()
+        
+        // UserInfo 객체 생성 및 저장
         guard let id = loginData["id"] as? String,
               let email = loginData["email"] as? String,
               let name = loginData["name"] as? String,
@@ -258,6 +282,34 @@ class LoginManager: ObservableObject {
         )
         
         saveLoginState(userInfo: userInfo)
+        
+        // 웹뷰에 로그인 정보 전달
+        let loginInfo = [
+            "type": "loginInfoReceived",
+            "detail": [
+                "isLoggedIn": true,
+                "userInfo": loginData
+            ]
+        ] as [String : Any]
+        
+        // JSON으로 변환하여 웹뷰에 전달
+        if let jsonData = try? JSONSerialization.data(withJSONObject: loginInfo),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            
+            let script = """
+                window.dispatchEvent(new CustomEvent('loginInfoReceived', {
+                    detail: \(jsonString)
+                }));
+            """
+            
+            // ContentView에서 웹뷰 참조를 받아서 실행하도록 수정 필요
+            print("Login info ready to send to web: \(jsonString)")
+        }
+        
+        print("Login info saved successfully")
+        print("UserDefaults - accessToken: \(userDefaults.string(forKey: "accessToken") ?? "nil")")
+        print("UserDefaults - refreshToken: \(userDefaults.string(forKey: "refreshToken") ?? "nil")")
+        print("UserDefaults - userEmail: \(userDefaults.string(forKey: "userEmail") ?? "nil")")
     }
     
     // MARK: - 웹뷰에 로그인 정보 전달
@@ -283,6 +335,54 @@ class LoginManager: ObservableObject {
             }
         }
         """
+    }
+    
+    // MARK: - 앱 시작 시 토큰 확인
+    func checkLoginStatus(webView: WKWebView? = nil) {
+        print("checkLoginStatus called")
+        
+        if let token = userDefaults.string(forKey: "accessToken") {
+            print("Found saved token: \(token)")
+            
+            let loginInfo = [
+                "type": "loginInfoReceived",
+                "detail": [
+                    "isLoggedIn": true,
+                    "userInfo": [
+                        "token": token,
+                        "refreshToken": userDefaults.string(forKey: "refreshToken") ?? "",
+                        "email": userDefaults.string(forKey: "userEmail") ?? "",
+                        "id": userDefaults.string(forKey: "userId") ?? "",
+                        "name": userDefaults.string(forKey: "userName") ?? ""
+                    ]
+                ]
+            ] as [String : Any]
+            
+            // JSON으로 변환
+            if let jsonData = try? JSONSerialization.data(withJSONObject: loginInfo),
+               let jsonString = String(data: jsonData, encoding: .utf8) {
+                
+                let script = """
+                    window.dispatchEvent(new CustomEvent('loginInfoReceived', {
+                        detail: \(jsonString)
+                    }));
+                """
+                
+                if let webView = webView {
+                    webView.evaluateJavaScript(script) { result, error in
+                        if let error = error {
+                            print("Error sending login info to web: \(error)")
+                        } else {
+                            print("Login info sent to web successfully")
+                        }
+                    }
+                } else {
+                    print("Login info ready to send: \(jsonString)")
+                }
+            }
+        } else {
+            print("No saved token found")
+        }
     }
     
     // MARK: - 웹뷰에서 로그인 정보 전달 (기존 메서드 수정)

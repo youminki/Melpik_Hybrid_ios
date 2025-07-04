@@ -90,6 +90,11 @@ struct ContentView: View {
         }
         .onAppear {
             setupApp()
+            
+            // 앱 시작 시 로그인 상태 확인
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                loginManager.checkLoginStatus(webView: webViewStore.webView)
+            }
         }
         .onReceive(appState.$pushToken) { token in
             if let token = token {
@@ -334,9 +339,9 @@ struct WebView: UIViewRepresentable {
             parent.canGoBack = webView.canGoBack
             parent.canGoForward = webView.canGoForward
             
-            // 웹뷰 로딩 완료 시 로그인 정보 전달
+            // 웹뷰 로딩 완료 시 로그인 상태 확인 및 전달
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                self.parent.loginManager.sendLoginInfoToWeb(webView: self.parent.webView)
+                self.parent.loginManager.checkLoginStatus(webView: self.parent.webView)
             }
         }
         
@@ -410,6 +415,33 @@ struct WebView: UIViewRepresentable {
             case "saveLoginInfo":
                 if let loginData = body["loginData"] as? [String: Any] {
                     parent.loginManager.saveLoginInfo(loginData)
+                    
+                    // 웹뷰에 로그인 정보 전달
+                    let loginInfo = [
+                        "type": "loginInfoReceived",
+                        "detail": [
+                            "isLoggedIn": true,
+                            "userInfo": loginData
+                        ]
+                    ] as [String : Any]
+                    
+                    if let jsonData = try? JSONSerialization.data(withJSONObject: loginInfo),
+                       let jsonString = String(data: jsonData, encoding: .utf8) {
+                        
+                        let script = """
+                            window.dispatchEvent(new CustomEvent('loginInfoReceived', {
+                                detail: \(jsonString)
+                            }));
+                        """
+                        
+                        parent.webView.evaluateJavaScript(script) { result, error in
+                            if let error = error {
+                                print("Error sending login info to web: \(error)")
+                            } else {
+                                print("Login info sent to web successfully")
+                            }
+                        }
+                    }
                 }
                 
             case "getLoginInfo":
