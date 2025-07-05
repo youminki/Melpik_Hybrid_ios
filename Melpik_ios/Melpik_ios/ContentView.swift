@@ -10,7 +10,7 @@ import WebKit
 
 // MARK: - Constants
 private enum Constants {
-    static let headerHeight: CGFloat = 50
+    static let headerHeight: CGFloat = 1 // 노치 영역까지 포함하도록 높이 증가
     static let loadingSpinnerScale: CGFloat = 1.2
     static let loadingTextSize: CGFloat = 16
     static let initialURL = "https://me1pik.com"
@@ -44,9 +44,10 @@ struct ContentView: View {
                 .ignoresSafeArea(.all, edges: .all)
             
             VStack(spacing: 0) {
-                // 상단 헤더 영역
+                // 상단 헤더 영역 - 최대한 위로 붙임
                 Color(.systemBackground)
                     .frame(height: Constants.headerHeight)
+                    .ignoresSafeArea(.all, edges: .top)
                 
                 // 웹뷰
                 WebView(
@@ -75,6 +76,9 @@ struct ContentView: View {
         .statusBarHidden(true)
         .navigationBarHidden(true)
         .preferredColorScheme(.light) // 라이트 모드 강제 설정
+        .onAppear {
+            // 상태바 스타일 설정은 SwiftUI에서 자동으로 처리됨
+        }
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(selectedImage: $selectedImage, sourceType: .photoLibrary)
         }

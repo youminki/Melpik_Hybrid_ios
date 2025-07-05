@@ -25,14 +25,13 @@ class LoginManager: ObservableObject {
     }
     
     // MARK: - 로그인 상태 저장
+    @MainActor
     func saveLoginState(userInfo: UserInfo) {
         print("saveLoginState called, userInfo: \(userInfo)")
         
-        // 메인 스레드에서 @Published 프로퍼티 업데이트
-        DispatchQueue.main.async {
-            self.userInfo = userInfo
-            self.isLoggedIn = true
-        }
+        // @Published 프로퍼티 업데이트
+        self.userInfo = userInfo
+        self.isLoggedIn = true
         
         // UserDefaults에 기본 정보 저장
         userDefaults.set(true, forKey: "isLoggedIn")
@@ -62,6 +61,7 @@ class LoginManager: ObservableObject {
     }
     
     // MARK: - 로그인 상태 복원
+    @MainActor
     func loadLoginState() {
         print("=== loadLoginState called ===")
         isLoading = true
@@ -112,10 +112,8 @@ class LoginManager: ObservableObject {
                 
                 // 토큰이 만료되지 않았는지 확인
                 if !userInfo.isTokenExpired {
-                    DispatchQueue.main.async {
-                        self.userInfo = userInfo
-                        self.isLoggedIn = true
-                    }
+                    self.userInfo = userInfo
+                    self.isLoggedIn = true
                     print("✅ Login state restored successfully")
                 } else {
                     print("❌ Token is expired")
@@ -142,10 +140,8 @@ class LoginManager: ObservableObject {
                 print("Created UserInfo from Keychain: \(userInfo)")
                 
                 if !userInfo.isTokenExpired {
-                    DispatchQueue.main.async {
-                        self.userInfo = userInfo
-                        self.isLoggedIn = true
-                    }
+                    self.userInfo = userInfo
+                    self.isLoggedIn = true
                     print("✅ Login state restored successfully from Keychain")
                 } else {
                     print("❌ Token is expired")
@@ -188,9 +184,9 @@ class LoginManager: ObservableObject {
     
     // MARK: - 로그아웃
     func logout() {
-        DispatchQueue.main.async {
-            self.isLoggedIn = false
-            self.userInfo = nil
+        DispatchQueue.main.async { [weak self] in
+            self?.isLoggedIn = false
+            self?.userInfo = nil
         }
         
         // UserDefaults에서 로그인 정보 제거
@@ -272,11 +268,11 @@ class LoginManager: ObservableObject {
         let context = LAContext()
         let reason = "저장된 로그인 정보에 접근합니다"
         
-        context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { success, error in
+        context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { [weak self] success, error in
             DispatchQueue.main.async {
                 if success {
                     // 생체 인증 성공 시 저장된 로그인 정보 복원
-                    self.loadLoginState()
+                    self?.loadLoginState()
                 }
                 completion(success)
             }
@@ -357,7 +353,9 @@ class LoginManager: ObservableObject {
         )
         
         print("Created UserInfo: \(userInfo)")
-        saveLoginState(userInfo: userInfo)
+        DispatchQueue.main.async { [weak self] in
+            self?.saveLoginState(userInfo: userInfo)
+        }
         
         // 웹뷰에 로그인 정보 전달
         let loginInfo = [
@@ -488,7 +486,7 @@ class LoginManager: ObservableObject {
     func checkLoginStatus(webView: WKWebView) {
         print("checkLoginStatus called")
         
-        if isLoggedIn, let userInfo = userInfo {
+        if isLoggedIn, let _ = userInfo {
             print("User is logged in, sending info to web")
             sendLoginInfoToWeb(webView: webView)
         } else {
@@ -531,10 +529,10 @@ class LoginManager: ObservableObject {
         }
         
         // 카드 추가 화면을 네이티브로 표시
-        DispatchQueue.main.async {
+        DispatchQueue.main.async { [weak self] in
             // 여기서 카드 추가 화면을 표시하는 로직을 구현
             // 예: 카드 추가 모달 또는 새로운 화면으로 이동
-            self.showCardAddScreen { success, errorMessage in
+            self?.showCardAddScreen { success, errorMessage in
                 completion(success, errorMessage)
             }
         }

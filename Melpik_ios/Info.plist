@@ -55,10 +55,6 @@
     <key>CFBundleVersion</key>
     <string>3</string>
     
-    <!-- 상태바 스타일 설정 -->
-    <key>UIStatusBarStyle</key>
-    <string>UIStatusBarStyleDefault</string>
-    
     <!-- 상태바 숨김 설정 -->
     <key>UIStatusBarHidden</key>
     <true/>
