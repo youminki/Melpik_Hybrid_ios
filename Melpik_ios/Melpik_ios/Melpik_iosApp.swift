@@ -26,6 +26,11 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // 푸시 알림 델리게이트 설정
         UNUserNotificationCenter.current().delegate = self
         
+        // 상태바 스타일 설정
+        if let windowScene = application.connectedScenes.first as? UIWindowScene {
+            windowScene.statusBarManager?.statusBarStyle = .default
+        }
+        
         return true
     }
     

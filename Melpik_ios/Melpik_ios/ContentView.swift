@@ -38,37 +38,43 @@ struct ContentView: View {
     @State private var cardAddCompletion: ((Bool, String?) -> Void)?
     
     var body: some View {
-        VStack(spacing: 0) {
-            // 상단 헤더 영역
+        ZStack {
+            // 전체 배경색 설정
             Color(.systemBackground)
-                .frame(height: Constants.headerHeight)
+                .ignoresSafeArea(.all, edges: .all)
             
-            // 웹뷰
-            WebView(
-                webView: webViewStore.webView,
-                isLoading: $isLoading,
-                canGoBack: $canGoBack,
-                canGoForward: $canGoForward,
-                appState: appState,
-                locationManager: locationManager,
-                networkMonitor: networkMonitor,
-                loginManager: loginManager,
-                onImagePicker: { showingImagePicker = true },
-                onCamera: { showingCamera = true },
-                onShare: { url in
-                    shareURL = url
-                    showingShareSheet = true
-                },
-                onSafari: { url in
-                    shareURL = url
-                    showingSafari = true
-                }
-            )
-            .overlay(loadingOverlay)
+            VStack(spacing: 0) {
+                // 상단 헤더 영역
+                Color(.systemBackground)
+                    .frame(height: Constants.headerHeight)
+                
+                // 웹뷰
+                WebView(
+                    webView: webViewStore.webView,
+                    isLoading: $isLoading,
+                    canGoBack: $canGoBack,
+                    canGoForward: $canGoForward,
+                    appState: appState,
+                    locationManager: locationManager,
+                    networkMonitor: networkMonitor,
+                    loginManager: loginManager,
+                    onImagePicker: { showingImagePicker = true },
+                    onCamera: { showingCamera = true },
+                    onShare: { url in
+                        shareURL = url
+                        showingShareSheet = true
+                    },
+                    onSafari: { url in
+                        shareURL = url
+                        showingSafari = true
+                    }
+                )
+                .overlay(loadingOverlay)
+            }
         }
-        .ignoresSafeArea(.all, edges: .all)
         .statusBarHidden(true)
         .navigationBarHidden(true)
+        .preferredColorScheme(.light) // 라이트 모드 강제 설정
         .sheet(isPresented: $showingImagePicker) {
             ImagePicker(selectedImage: $selectedImage, sourceType: .photoLibrary)
         }
