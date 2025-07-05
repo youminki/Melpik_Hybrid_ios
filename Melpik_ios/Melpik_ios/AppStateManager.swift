@@ -69,17 +69,17 @@ class AppStateManager: ObservableObject {
     private func loadLoginState() {
         print("loadLoginState called")
         let autoLoginEnabled = userDefaults.bool(forKey: "autoLoginEnabled")
-        let userId = userDefaults.string(forKey: "userId")
-        let userEmail = userDefaults.string(forKey: "userEmail")
-        let userName = userDefaults.string(forKey: "userName")
+        let userId = userDefaults.string(forKey: "userId") ?? "nil"
+        let userEmail = userDefaults.string(forKey: "userEmail") ?? "nil"
+        let userName = userDefaults.string(forKey: "userName") ?? "nil"
         let expiresAt = userDefaults.object(forKey: "tokenExpiresAt")
-        let accessToken = loadFromKeychain(key: "accessToken")
-        let refreshToken = loadFromKeychain(key: "refreshToken")
+        let accessToken = loadFromKeychain(key: "accessToken") ?? "nil"
+        let refreshToken = loadFromKeychain(key: "refreshToken") ?? "nil"
         print("autoLoginEnabled:", autoLoginEnabled)
         print("userId:", userId)
         print("userEmail:", userEmail)
         print("userName:", userName)
-        print("expiresAt:", expiresAt)
+        print("expiresAt:", expiresAt ?? "nil")
         print("accessToken:", accessToken)
         print("refreshToken:", refreshToken)
         // ... 이하 생략 ...

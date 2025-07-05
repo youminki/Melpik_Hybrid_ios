@@ -27,8 +27,12 @@ class LoginManager: ObservableObject {
     // MARK: - 로그인 상태 저장
     func saveLoginState(userInfo: UserInfo) {
         print("saveLoginState called, userInfo: \(userInfo)")
-        self.userInfo = userInfo
-        self.isLoggedIn = true
+        
+        // 메인 스레드에서 @Published 프로퍼티 업데이트
+        DispatchQueue.main.async {
+            self.userInfo = userInfo
+            self.isLoggedIn = true
+        }
         
         // UserDefaults에 기본 정보 저장
         userDefaults.set(true, forKey: "isLoggedIn")
@@ -49,68 +53,116 @@ class LoginManager: ObservableObject {
         userDefaults.set(true, forKey: "autoLoginEnabled")
         userDefaults.synchronize()
         print("[saveLoginState] isLoggedIn:", isLoggedIn)
-        print("[saveLoginState] userId:", userDefaults.string(forKey: "userId"))
-        print("[saveLoginState] userEmail:", userDefaults.string(forKey: "userEmail"))
-        print("[saveLoginState] userName:", userDefaults.string(forKey: "userName"))
-        print("[saveLoginState] expiresAt:", userDefaults.object(forKey: "tokenExpiresAt"))
-        print("[saveLoginState] accessToken:", loadFromKeychain(key: "accessToken"))
-        print("[saveLoginState] refreshToken:", loadFromKeychain(key: "refreshToken"))
+        print("[saveLoginState] userId:", userDefaults.string(forKey: "userId") ?? "nil")
+        print("[saveLoginState] userEmail:", userDefaults.string(forKey: "userEmail") ?? "nil")
+        print("[saveLoginState] userName:", userDefaults.string(forKey: "userName") ?? "nil")
+        print("[saveLoginState] expiresAt:", userDefaults.object(forKey: "tokenExpiresAt") ?? "nil")
+        print("[saveLoginState] accessToken:", loadFromKeychain(key: "accessToken") ?? "nil")
+        print("[saveLoginState] refreshToken:", loadFromKeychain(key: "refreshToken") ?? "nil")
     }
     
     // MARK: - 로그인 상태 복원
     func loadLoginState() {
-        print("loadLoginState called")
+        print("=== loadLoginState called ===")
         isLoading = true
         
         // 자동 로그인이 활성화되어 있는지 확인
         let autoLoginEnabled = userDefaults.bool(forKey: "autoLoginEnabled")
+        let isLoggedIn = userDefaults.bool(forKey: "isLoggedIn")
         let userId = userDefaults.string(forKey: "userId")
         let userEmail = userDefaults.string(forKey: "userEmail")
         let userName = userDefaults.string(forKey: "userName")
+        let accessTokenFromDefaults = userDefaults.string(forKey: "accessToken")
+        let refreshTokenFromDefaults = userDefaults.string(forKey: "refreshToken")
         let expiresAt = userDefaults.object(forKey: "tokenExpiresAt")
-        let accessToken = loadFromKeychain(key: "accessToken")
-        let refreshToken = loadFromKeychain(key: "refreshToken")
-        print("[loadLoginState] autoLoginEnabled:", autoLoginEnabled)
-        print("[loadLoginState] userId:", userId)
-        print("[loadLoginState] userEmail:", userEmail)
-        print("[loadLoginState] userName:", userName)
-        print("[loadLoginState] expiresAt:", expiresAt)
-        print("[loadLoginState] accessToken:", accessToken)
-        print("[loadLoginState] refreshToken:", refreshToken)
+        let accessTokenFromKeychain = loadFromKeychain(key: "accessToken")
+        let refreshTokenFromKeychain = loadFromKeychain(key: "refreshToken")
         
-        if autoLoginEnabled {
-            // Keychain에서 토큰 복원
-            if let accessToken = loadFromKeychain(key: "accessToken") {
-                let userId = userDefaults.string(forKey: "userId") ?? ""
-                let userEmail = userDefaults.string(forKey: "userEmail") ?? ""
-                let userName = userDefaults.string(forKey: "userName") ?? ""
-                let refreshToken = loadFromKeychain(key: "refreshToken")
-                let expiresAt = userDefaults.object(forKey: "tokenExpiresAt") as? Date
+        print("=== UserDefaults values ===")
+        print("autoLoginEnabled: \(autoLoginEnabled)")
+        print("isLoggedIn: \(isLoggedIn)")
+        print("userId: \(userId ?? "nil")")
+        print("userEmail: \(userEmail ?? "nil")")
+        print("userName: \(userName ?? "nil")")
+        print("accessToken (UserDefaults): \(accessTokenFromDefaults ?? "nil")")
+        print("refreshToken (UserDefaults): \(refreshTokenFromDefaults ?? "nil")")
+        print("expiresAt: \(expiresAt != nil ? "\(expiresAt!)" : "nil")")
+        
+        print("=== Keychain values ===")
+        print("accessToken (Keychain): \(accessTokenFromKeychain ?? "nil")")
+        print("refreshToken (Keychain): \(refreshTokenFromKeychain ?? "nil")")
+        
+        if autoLoginEnabled && isLoggedIn {
+            print("=== Attempting to restore login state ===")
+            
+            // UserDefaults에서 먼저 확인
+            if let accessToken = accessTokenFromDefaults {
+                print("✅ Found accessToken in UserDefaults")
                 
                 let userInfo = UserInfo(
-                    id: userId,
-                    email: userEmail,
-                    name: userName,
+                    id: userId ?? "",
+                    email: userEmail ?? "",
+                    name: userName ?? "",
                     token: accessToken,
-                    refreshToken: refreshToken,
-                    expiresAt: expiresAt
+                    refreshToken: refreshTokenFromDefaults,
+                    expiresAt: expiresAt as? Date
                 )
+                
+                print("Created UserInfo from UserDefaults: \(userInfo)")
                 
                 // 토큰이 만료되지 않았는지 확인
                 if !userInfo.isTokenExpired {
-                    self.userInfo = userInfo
-                    self.isLoggedIn = true
-                } else if let refreshToken = refreshToken {
-                    // 토큰이 만료되었지만 refresh token이 있으면 갱신 시도
-                    refreshAccessToken(refreshToken: refreshToken)
+                    DispatchQueue.main.async {
+                        self.userInfo = userInfo
+                        self.isLoggedIn = true
+                    }
+                    print("✅ Login state restored successfully")
                 } else {
-                    // 토큰이 만료되고 refresh token도 없으면 로그아웃
-                    logout()
+                    print("❌ Token is expired")
+                    if let refreshToken = refreshTokenFromDefaults {
+                        print("🔄 Attempting token refresh...")
+                        refreshAccessToken(refreshToken: refreshToken)
+                    } else {
+                        print("❌ No refresh token available, logging out")
+                        logout()
+                    }
+                }
+            } else if let accessToken = accessTokenFromKeychain {
+                print("✅ Found accessToken in Keychain")
+                
+                let userInfo = UserInfo(
+                    id: userId ?? "",
+                    email: userEmail ?? "",
+                    name: userName ?? "",
+                    token: accessToken,
+                    refreshToken: refreshTokenFromKeychain,
+                    expiresAt: expiresAt as? Date
+                )
+                
+                print("Created UserInfo from Keychain: \(userInfo)")
+                
+                if !userInfo.isTokenExpired {
+                    DispatchQueue.main.async {
+                        self.userInfo = userInfo
+                        self.isLoggedIn = true
+                    }
+                    print("✅ Login state restored successfully from Keychain")
+                } else {
+                    print("❌ Token is expired")
+                    if let refreshToken = refreshTokenFromKeychain {
+                        print("🔄 Attempting token refresh...")
+                        refreshAccessToken(refreshToken: refreshToken)
+                    } else {
+                        print("❌ No refresh token available, logging out")
+                        logout()
+                    }
                 }
             } else {
+                print("❌ No access token found in UserDefaults or Keychain")
                 logout()
             }
         } else {
+            print("❌ Auto login not enabled or user not logged in")
             logout()
         }
         
@@ -136,8 +188,10 @@ class LoginManager: ObservableObject {
     
     // MARK: - 로그아웃
     func logout() {
-        isLoggedIn = false
-        userInfo = nil
+        DispatchQueue.main.async {
+            self.isLoggedIn = false
+            self.userInfo = nil
+        }
         
         // UserDefaults에서 로그인 정보 제거
         userDefaults.removeObject(forKey: "isLoggedIn")
@@ -231,35 +285,55 @@ class LoginManager: ObservableObject {
     
     // MARK: - 웹에서 받은 로그인 데이터 처리
     func saveLoginInfo(_ loginData: [String: Any]) {
-        print("saveLoginInfo called with data: \(loginData)")
+        print("=== saveLoginInfo called ===")
+        print("Received login data: \(loginData)")
         
         // UserDefaults를 사용하여 토큰 저장
         if let token = loginData["token"] as? String {
             userDefaults.set(token, forKey: "accessToken")
+            print("Saved accessToken to UserDefaults: \(token)")
+        } else {
+            print("❌ No token found in login data")
         }
+        
         if let refreshToken = loginData["refreshToken"] as? String {
             userDefaults.set(refreshToken, forKey: "refreshToken")
+            print("Saved refreshToken to UserDefaults: \(refreshToken)")
         }
+        
         if let email = loginData["email"] as? String {
             userDefaults.set(email, forKey: "userEmail")
+            print("Saved userEmail to UserDefaults: \(email)")
         }
+        
         if let id = loginData["id"] as? String {
             userDefaults.set(id, forKey: "userId")
+            print("Saved userId to UserDefaults: \(id)")
         }
+        
         if let name = loginData["name"] as? String {
             userDefaults.set(name, forKey: "userName")
+            print("Saved userName to UserDefaults: \(name)")
         }
         
         // 자동 로그인 활성화
         userDefaults.set(true, forKey: "autoLoginEnabled")
+        userDefaults.set(true, forKey: "isLoggedIn")
         userDefaults.synchronize()
+        
+        print("=== UserDefaults after saving ===")
+        print("isLoggedIn: \(userDefaults.bool(forKey: "isLoggedIn"))")
+        print("accessToken: \(userDefaults.string(forKey: "accessToken") ?? "nil")")
+        print("userId: \(userDefaults.string(forKey: "userId") ?? "nil")")
+        print("userEmail: \(userDefaults.string(forKey: "userEmail") ?? "nil")")
+        print("userName: \(userDefaults.string(forKey: "userName") ?? "nil")")
         
         // UserInfo 객체 생성 및 저장
         guard let id = loginData["id"] as? String,
               let email = loginData["email"] as? String,
               let name = loginData["name"] as? String,
               let token = loginData["token"] as? String else {
-            print("Invalid login data received")
+            print("❌ Invalid login data - missing required fields")
             return
         }
         
@@ -270,6 +344,7 @@ class LoginManager: ObservableObject {
         if let expiresAtString = expiresAtString {
             let formatter = ISO8601DateFormatter()
             expiresAt = formatter.date(from: expiresAtString)
+            print("Parsed expiresAt: \(expiresAt?.description ?? "nil")")
         }
         
         let userInfo = UserInfo(
@@ -281,6 +356,7 @@ class LoginManager: ObservableObject {
             expiresAt: expiresAt
         )
         
+        print("Created UserInfo: \(userInfo)")
         saveLoginState(userInfo: userInfo)
         
         // 웹뷰에 로그인 정보 전달
@@ -296,20 +372,11 @@ class LoginManager: ObservableObject {
         if let jsonData = try? JSONSerialization.data(withJSONObject: loginInfo),
            let jsonString = String(data: jsonData, encoding: .utf8) {
             
-            let script = """
-                window.dispatchEvent(new CustomEvent('loginInfoReceived', {
-                    detail: \(jsonString)
-                }));
-            """
-            
             // ContentView에서 웹뷰 참조를 받아서 실행하도록 수정 필요
             print("Login info ready to send to web: \(jsonString)")
         }
         
-        print("Login info saved successfully")
-        print("UserDefaults - accessToken: \(userDefaults.string(forKey: "accessToken") ?? "nil")")
-        print("UserDefaults - refreshToken: \(userDefaults.string(forKey: "refreshToken") ?? "nil")")
-        print("UserDefaults - userEmail: \(userDefaults.string(forKey: "userEmail") ?? "nil")")
+        print("=== Login info saved successfully ===")
     }
     
     // MARK: - 웹뷰에 로그인 정보 전달
@@ -337,63 +404,173 @@ class LoginManager: ObservableObject {
         """
     }
     
-    // MARK: - 앱 시작 시 토큰 확인
-    func checkLoginStatus(webView: WKWebView? = nil) {
-        print("checkLoginStatus called")
+    // MARK: - 웹뷰로 로그인 정보 전달
+    func sendLoginInfoToWeb(webView: WKWebView) {
+        guard let userInfo = userInfo else {
+            print("❌ sendLoginInfoToWeb: userInfo is nil")
+            return
+        }
         
-        if let token = userDefaults.string(forKey: "accessToken") {
-            print("Found saved token: \(token)")
-            
-            let loginInfo = [
-                "type": "loginInfoReceived",
-                "detail": [
-                    "isLoggedIn": true,
-                    "userInfo": [
-                        "token": token,
-                        "refreshToken": userDefaults.string(forKey: "refreshToken") ?? "",
-                        "email": userDefaults.string(forKey: "userEmail") ?? "",
-                        "id": userDefaults.string(forKey: "userId") ?? "",
-                        "name": userDefaults.string(forKey: "userName") ?? ""
-                    ]
-                ]
-            ] as [String : Any]
-            
-            // JSON으로 변환
-            if let jsonData = try? JSONSerialization.data(withJSONObject: loginInfo),
-               let jsonString = String(data: jsonData, encoding: .utf8) {
+        print("=== sendLoginInfoToWeb called ===")
+        print("UserInfo to send: \(userInfo)")
+        
+        // 웹뷰에 로그인 정보를 JavaScript로 전달
+        let script = """
+        (function() {
+            try {
+                console.log('Native app sending login info to web...');
                 
-                let script = """
-                    window.dispatchEvent(new CustomEvent('loginInfoReceived', {
-                        detail: \(jsonString)
-                    }));
-                """
+                // localStorage에 로그인 정보 저장
+                localStorage.setItem('accessToken', '\(userInfo.token)');
+                localStorage.setItem('userId', '\(userInfo.id)');
+                localStorage.setItem('userEmail', '\(userInfo.email)');
+                localStorage.setItem('userName', '\(userInfo.name)');
                 
-                if let webView = webView {
-                    webView.evaluateJavaScript(script) { result, error in
-                        if let error = error {
-                            print("Error sending login info to web: \(error)")
-                        } else {
-                            print("Login info sent to web successfully")
+                if ('\(userInfo.refreshToken ?? "")' !== '') {
+                    localStorage.setItem('refreshToken', '\(userInfo.refreshToken ?? "")');
+                }
+                
+                if ('\(userInfo.expiresAt?.timeIntervalSince1970 ?? 0)' !== '0') {
+                    localStorage.setItem('tokenExpiresAt', '\(userInfo.expiresAt?.timeIntervalSince1970 ?? 0)');
+                }
+                
+                // 쿠키에도 토큰 설정
+                document.cookie = 'accessToken=\(userInfo.token); path=/; secure; samesite=strict';
+                document.cookie = 'userId=\(userInfo.id); path=/; secure; samesite=strict';
+                
+                // 로그인 상태 이벤트 발생
+                window.dispatchEvent(new CustomEvent('nativeLoginSuccess', {
+                    detail: {
+                        userId: '\(userInfo.id)',
+                        userEmail: '\(userInfo.email)',
+                        userName: '\(userInfo.name)',
+                        accessToken: '\(userInfo.token)'
+                    }
+                }));
+                
+                // 추가 이벤트도 발생
+                window.dispatchEvent(new CustomEvent('loginInfoReceived', {
+                    detail: {
+                        isLoggedIn: true,
+                        userInfo: {
+                            id: '\(userInfo.id)',
+                            email: '\(userInfo.email)',
+                            name: '\(userInfo.name)',
+                            token: '\(userInfo.token)',
+                            refreshToken: '\(userInfo.refreshToken ?? "")'
                         }
                     }
-                } else {
-                    print("Login info ready to send: \(jsonString)")
+                }));
+                
+                console.log('✅ Native login info sent to web successfully');
+                console.log('localStorage accessToken:', localStorage.getItem('accessToken'));
+                console.log('localStorage userId:', localStorage.getItem('userId'));
+            } catch (error) {
+                console.error('❌ Error in native login script:', error);
+            }
+        })();
+        """
+        
+        print("Executing JavaScript script...")
+        webView.evaluateJavaScript(script) { result, error in
+            if let error = error {
+                print("❌ sendLoginInfoToWeb error: \(error)")
+            } else {
+                print("✅ sendLoginInfoToWeb success")
+                if let result = result {
+                    print("JavaScript result: \(result)")
                 }
             }
-        } else {
-            print("No saved token found")
         }
     }
     
-    // MARK: - 웹뷰에서 로그인 정보 전달 (기존 메서드 수정)
-    func sendLoginInfoToWeb(webView: WKWebView? = nil) {
-        let loginInfo = getLoginInfo()
-        let script = "window.dispatchEvent(new CustomEvent('loginInfoReceived', { detail: \(loginInfo) }));"
+    // MARK: - 앱 시작 시 로그인 상태 확인
+    func checkLoginStatus(webView: WKWebView) {
+        print("checkLoginStatus called")
         
-        if let webView = webView {
-            webView.evaluateJavaScript(script)
+        if isLoggedIn, let userInfo = userInfo {
+            print("User is logged in, sending info to web")
+            sendLoginInfoToWeb(webView: webView)
         } else {
-            print("Login info: \(loginInfo)")
+            print("User is not logged in")
+            // 웹뷰에 로그아웃 상태 알림
+            let logoutScript = """
+            (function() {
+                // localStorage에서 로그인 정보 제거
+                localStorage.removeItem('accessToken');
+                localStorage.removeItem('userId');
+                localStorage.removeItem('userEmail');
+                localStorage.removeItem('userName');
+                localStorage.removeItem('refreshToken');
+                localStorage.removeItem('tokenExpiresAt');
+                
+                // 로그아웃 상태 이벤트 발생
+                window.dispatchEvent(new CustomEvent('nativeLogout'));
+                
+                console.log('Native logout state sent to web');
+            })();
+            """
+            
+            webView.evaluateJavaScript(logoutScript) { result, error in
+                if let error = error {
+                    print("checkLoginStatus logout error: \(error)")
+                }
+            }
+        }
+    }
+    
+    // MARK: - 카드 추가 관련 메서드
+    func handleCardAddRequest(webView: WKWebView, completion: @escaping (Bool, String?) -> Void) {
+        print("handleCardAddRequest called")
+        
+        // 로그인 상태 확인
+        guard isLoggedIn, let _ = userInfo else {
+            print("User not logged in, cannot add card")
+            completion(false, "로그인이 필요합니다.")
+            return
+        }
+        
+        // 카드 추가 화면을 네이티브로 표시
+        DispatchQueue.main.async {
+            // 여기서 카드 추가 화면을 표시하는 로직을 구현
+            // 예: 카드 추가 모달 또는 새로운 화면으로 이동
+            self.showCardAddScreen { success, errorMessage in
+                completion(success, errorMessage)
+            }
+        }
+    }
+    
+    private func showCardAddScreen(completion: @escaping (Bool, String?) -> Void) {
+        // 실제 카드 추가 화면을 표시하기 위해 NotificationCenter 사용
+        // ContentView에서 이 알림을 받아서 CardAddView를 표시
+        NotificationCenter.default.post(
+            name: NSNotification.Name("ShowCardAddView"),
+            object: nil,
+            userInfo: ["completion": completion]
+        )
+    }
+    
+    // MARK: - 카드 추가 완료 후 웹뷰에 알림
+    func notifyCardAddComplete(webView: WKWebView, success: Bool, errorMessage: String? = nil) {
+        let script = """
+        (function() {
+            window.dispatchEvent(new CustomEvent('cardAddComplete', {
+                detail: {
+                    success: \(success),
+                    errorMessage: '\(errorMessage ?? "")'
+                }
+            }));
+            
+            console.log('Card add complete notification sent to web');
+        })();
+        """
+        
+        webView.evaluateJavaScript(script) { result, error in
+            if let error = error {
+                print("notifyCardAddComplete error: \(error)")
+            } else {
+                print("notifyCardAddComplete success")
+            }
         }
     }
 } 

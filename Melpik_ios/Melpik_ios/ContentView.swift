@@ -34,6 +34,8 @@ struct ContentView: View {
     @State private var selectedImage: UIImage?
     @State private var shareURL: URL?
     @State private var showingAlert = false
+    @State private var showingCardAddView = false
+    @State private var cardAddCompletion: ((Bool, String?) -> Void)?
     
     var body: some View {
         VStack(spacing: 0) {
@@ -83,6 +85,14 @@ struct ContentView: View {
                 SafariView(url: url)
             }
         }
+        .sheet(isPresented: $showingCardAddView) {
+            if let completion = cardAddCompletion {
+                CardAddView { success, error in
+                    completion(success, error)
+                    showingCardAddView = false
+                }
+            }
+        }
         .alert("제목", isPresented: $showingAlert) {
             Button("확인", role: .cancel) { }
         } message: {
@@ -95,6 +105,25 @@ struct ContentView: View {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 loginManager.checkLoginStatus(webView: webViewStore.webView)
             }
+            
+            // 카드 추가 화면 표시 알림 수신
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("ShowCardAddView"),
+                object: nil,
+                queue: .main
+            ) { notification in
+                if let completion = notification.userInfo?["completion"] as? (Bool, String?) -> Void {
+                    self.cardAddCompletion = completion
+                    self.showingCardAddView = true
+                }
+            }
+            
+            // 디버깅 도구 실행 (개발 중에만 사용)
+            #if DEBUG
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                DebugHelper.shared.runFullDebug(loginManager: loginManager, webView: webViewStore.webView)
+            }
+            #endif
         }
         .onReceive(appState.$pushToken) { token in
             if let token = token {
@@ -310,6 +339,33 @@ struct WebView: UIViewRepresentable {
                 window.webkit.messageHandlers.nativeBridge.postMessage({
                     action: 'reload'
                 });
+            },
+            
+            // 카드 추가
+            addCard: function() {
+                window.webkit.messageHandlers.nativeBridge.postMessage({
+                    action: 'addCard'
+                });
+            },
+            
+            // 카드 목록 새로고침
+            refreshCardList: function() {
+                window.webkit.messageHandlers.nativeBridge.postMessage({
+                    action: 'refreshCardList'
+                });
+            },
+            
+            // 디버깅 도구
+            debugLoginState: function() {
+                window.webkit.messageHandlers.nativeBridge.postMessage({
+                    action: 'debugLoginState'
+                });
+            },
+            
+            forceSendLoginInfo: function() {
+                window.webkit.messageHandlers.nativeBridge.postMessage({
+                    action: 'forceSendLoginInfo'
+                });
             }
         };
         """
@@ -339,8 +395,12 @@ struct WebView: UIViewRepresentable {
             parent.canGoBack = webView.canGoBack
             parent.canGoForward = webView.canGoForward
             
+            print("=== WebView didFinish loading ===")
+            print("Current URL: \(webView.url?.absoluteString ?? "nil")")
+            
             // 웹뷰 로딩 완료 시 로그인 상태 확인 및 전달
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                print("Checking login status after webview load...")
                 self.parent.loginManager.checkLoginStatus(webView: self.parent.webView)
             }
         }
@@ -464,6 +524,38 @@ struct WebView: UIViewRepresentable {
                 
             case "reload":
                 parent.webView.reload()
+                
+            case "addCard":
+                parent.loginManager.handleCardAddRequest(webView: parent.webView) { [weak self] success, errorMessage in
+                    guard let self = self else { return }
+                    
+                    DispatchQueue.main.async {
+                        if success {
+                            // 카드 추가 성공 시 웹뷰에 알림
+                            self.parent.loginManager.notifyCardAddComplete(webView: self.parent.webView, success: true)
+                            
+                            // 카드 목록 새로고침 이벤트 발생
+                            let script = "window.dispatchEvent(new CustomEvent('cardListRefresh'));"
+                            self.parent.webView.evaluateJavaScript(script)
+                        } else {
+                            // 카드 추가 실패 시 웹뷰에 에러 알림
+                            self.parent.loginManager.notifyCardAddComplete(webView: self.parent.webView, success: false, errorMessage: errorMessage)
+                        }
+                    }
+                }
+                
+            case "refreshCardList":
+                // 카드 목록 새로고침 이벤트 발생
+                let script = "window.dispatchEvent(new CustomEvent('cardListRefresh'));"
+                parent.webView.evaluateJavaScript(script)
+                
+            case "debugLoginState":
+                // 로그인 상태 디버깅
+                DebugHelper.shared.debugLoginState(loginManager: parent.loginManager, webView: parent.webView)
+                
+            case "forceSendLoginInfo":
+                // 강제 로그인 정보 전송
+                DebugHelper.shared.forceSendLoginInfo(loginManager: parent.loginManager, webView: parent.webView)
                 
             default:
                 break
