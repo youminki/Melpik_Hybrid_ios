@@ -6,7 +6,7 @@
 //
 
 import XCTest
-@testable import Melpik_ios
+@testable import Melpik
 
 final class Melpik_iosTests: XCTestCase {
 

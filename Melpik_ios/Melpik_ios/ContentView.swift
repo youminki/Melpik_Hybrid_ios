@@ -43,39 +43,33 @@ struct ContentView: View {
             Color(.systemBackground)
                 .ignoresSafeArea(.all, edges: .all)
             
-            VStack(spacing: 0) {
-                // 상단 헤더 영역 - 최대한 위로 붙임
-                Color(.systemBackground)
-                    .frame(height: Constants.headerHeight)
-                    .ignoresSafeArea(.all, edges: .top)
-                
-                // 웹뷰
-                WebView(
-                    webView: webViewStore.webView,
-                    isLoading: $isLoading,
-                    canGoBack: $canGoBack,
-                    canGoForward: $canGoForward,
-                    appState: appState,
-                    locationManager: locationManager,
-                    networkMonitor: networkMonitor,
-                    loginManager: loginManager,
-                    onImagePicker: { showingImagePicker = true },
-                    onCamera: { showingCamera = true },
-                    onShare: { url in
-                        shareURL = url
-                        showingShareSheet = true
-                    },
-                    onSafari: { url in
-                        shareURL = url
-                        showingSafari = true
-                    }
-                )
-                .overlay(loadingOverlay)
-            }
+            // 웹뷰 (상단 헤더 제거, 하단 safe area 무시)
+            WebView(
+                webView: webViewStore.webView,
+                isLoading: $isLoading,
+                canGoBack: $canGoBack,
+                canGoForward: $canGoForward,
+                appState: appState,
+                locationManager: locationManager,
+                networkMonitor: networkMonitor,
+                loginManager: loginManager,
+                onImagePicker: { showingImagePicker = true },
+                onCamera: { showingCamera = true },
+                onShare: { url in
+                    shareURL = url
+                    showingShareSheet = true
+                },
+                onSafari: { url in
+                    shareURL = url
+                    showingSafari = true
+                }
+            )
+            .overlay(loadingOverlay)
+            .ignoresSafeArea(.all, edges: .bottom)
         }
-        .statusBarHidden(true)
+        .statusBarHidden(false)
         .navigationBarHidden(true)
-        .preferredColorScheme(.light) // 라이트 모드 강제 설정
+        .preferredColorScheme(.light)
         .onAppear {
             // 상태바 스타일 설정은 SwiftUI에서 자동으로 처리됨
         }
@@ -406,9 +400,21 @@ struct WebView: UIViewRepresentable {
             parent.canGoForward = webView.canGoForward
             
             print("=== WebView didFinish loading ===")
-            print("Current URL: \(webView.url?.absoluteString ?? "nil")")
-            
-            // 웹뷰 로딩 완료 시 로그인 상태 확인 및 전달
+            let currentURL = webView.url?.absoluteString ?? "nil"
+            print("Current URL: \(currentURL)")
+
+            // 로그인 페이지 진입 시 Face ID 인증 시도
+            if currentURL.starts(with: "https://me1pik.com/login") {
+                parent.loginManager.authenticateWithBiometrics { [weak self] success in
+                    guard let self = self, success else { return }
+                    // 인증 성공 시 로그인 정보 웹뷰에 전달
+                    DispatchQueue.main.async {
+                        self.parent.loginManager.sendLoginInfoToWeb(webView: self.parent.webView)
+                    }
+                }
+            }
+
+            // 기존: 웹뷰 로딩 완료 시 로그인 상태 확인 및 전달
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
                 print("Checking login status after webview load...")
                 self.parent.loginManager.checkLoginStatus(webView: self.parent.webView)

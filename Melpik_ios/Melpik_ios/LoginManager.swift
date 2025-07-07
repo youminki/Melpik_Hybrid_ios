@@ -30,8 +30,10 @@ class LoginManager: ObservableObject {
         print("saveLoginState called, userInfo: \(userInfo)")
         
         // @Published 프로퍼티 업데이트
-        self.userInfo = userInfo
-        self.isLoggedIn = true
+        DispatchQueue.main.async { [weak self] in
+            self?.userInfo = userInfo
+            self?.isLoggedIn = true
+        }
         
         // UserDefaults에 기본 정보 저장
         userDefaults.set(true, forKey: "isLoggedIn")
@@ -64,7 +66,7 @@ class LoginManager: ObservableObject {
     @MainActor
     func loadLoginState() {
         print("=== loadLoginState called ===")
-        isLoading = true
+        DispatchQueue.main.async { [weak self] in self?.isLoading = true }
         
         // 자동 로그인이 활성화되어 있는지 확인
         let autoLoginEnabled = userDefaults.bool(forKey: "autoLoginEnabled")
@@ -112,8 +114,10 @@ class LoginManager: ObservableObject {
                 
                 // 토큰이 만료되지 않았는지 확인
                 if !userInfo.isTokenExpired {
-                    self.userInfo = userInfo
-                    self.isLoggedIn = true
+                    DispatchQueue.main.async { [weak self] in
+                        self?.userInfo = userInfo
+                        self?.isLoggedIn = true
+                    }
                     print("✅ Login state restored successfully")
                 } else {
                     print("❌ Token is expired")
@@ -140,8 +144,10 @@ class LoginManager: ObservableObject {
                 print("Created UserInfo from Keychain: \(userInfo)")
                 
                 if !userInfo.isTokenExpired {
-                    self.userInfo = userInfo
-                    self.isLoggedIn = true
+                    DispatchQueue.main.async { [weak self] in
+                        self?.userInfo = userInfo
+                        self?.isLoggedIn = true
+                    }
                     print("✅ Login state restored successfully from Keychain")
                 } else {
                     print("❌ Token is expired")
@@ -162,7 +168,7 @@ class LoginManager: ObservableObject {
             logout()
         }
         
-        isLoading = false
+        DispatchQueue.main.async { [weak self] in self?.isLoading = false }
     }
     
     // MARK: - 토큰 갱신
