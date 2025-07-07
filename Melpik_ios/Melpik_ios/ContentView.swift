@@ -61,25 +61,29 @@ struct TypingLoadingView: View {
 
     var loadingBody: some View {
         VStack {
-            Spacer().frame(height: 135) // 로그인 박스 margin-top과 동일하게
+            // 웹의 NaverLoginBox margin-top: 64px와 동일
+            Spacer().frame(height: 100)
+            
+            // 웹의 NaverLoginBox와 동일한 구조
             VStack(alignment: .center, spacing: 0) {
-                // 로고
+                // 로고 - 웹의 LogoWrap margin-bottom: 24px와 동일
                 Image("LoadingMelPick")
                     .resizable()
                     .frame(width: 184, height: 83)
-                    .padding(.bottom, 24) // 로그인 박스와 동일
-                // 슬로건 (웹과 동일한 구조)
+                    .padding(.bottom, 32)
+                
+                // 슬로건 - 웹의 Slogan과 동일한 구조
                 VStack(spacing: 0) {
                     // 첫 번째 줄: "이젠 멜픽을 통해"
                     HStack(spacing: 0) {
                         Text(displayed1)
-                            .font(.custom("NanumSquareEB", size: 18)) // 나눔스퀘어 ExtraBold
+                            .font(.custom("NanumSquareEB", size: 18))
                             .foregroundColor(Color(hex: "#222"))
                         Text(displayed2)
-                            .font(.custom("NanumSquareEB", size: 18)) // 나눔스퀘어 ExtraBold
+                            .font(.custom("NanumSquareEB", size: 18))
                             .foregroundColor(Color(hex: "#F6AE24"))
                         Text(displayed3)
-                            .font(.custom("NanumSquareEB", size: 18)) // 나눔스퀘어 ExtraBold
+                            .font(.custom("NanumSquareEB", size: 18))
                             .foregroundColor(Color(hex: "#222"))
                     }
                     .frame(maxWidth: .infinity)
@@ -87,24 +91,27 @@ struct TypingLoadingView: View {
                     
                     // 두 번째 줄: "브랜드를 골라보세요"
                     Text(displayed4)
-                        .font(.custom("NanumSquareEB", size: 18)) // 나눔스퀘어 ExtraBold
+                        .font(.custom("NanumSquareEB", size: 18))
                         .foregroundColor(Color(hex: "#222"))
                         .frame(maxWidth: .infinity)
                         .multilineTextAlignment(.center)
                         .lineSpacing(1.5) // 웹의 line-height: 1.5와 동일
-                        .padding(.bottom, 18) // 웹의 margin-bottom: 18px와 동일
+                        .padding(.bottom, 10) // 웹의 Slogan margin-bottom: 18px와 동일
                     
                     // 서브슬로건: "사고, 팔고, 빌리는 것을 한번에!"
                     if !displayedSub.isEmpty {
                         Text(displayedSub)
-                            .font(.custom("NanumSquareB", size: 15)) // 나눔스퀘어 Bold
-                            .foregroundColor(Color(hex: "#888")) // 웹의 color: #888
+                            .font(.custom("NanumSquareB", size: 15))
+                            .foregroundColor(Color(hex: "#888"))
                             .frame(maxWidth: .infinity)
                             .multilineTextAlignment(.center)
-                            .padding(.top, 4) // 웹의 margin-top: 4px
+                            .padding(.top, 2) // 웹의 SloganSub margin-top: 4px와 동일
                     }
                 }
             }
+            .padding(.horizontal, 32) // 웹의 NaverLoginBox padding: 2rem과 동일
+            .frame(maxWidth: 400) // 웹의 max-width: 400px와 동일
+            
             Spacer()
         }
         .background(Color.white.ignoresSafeArea())
