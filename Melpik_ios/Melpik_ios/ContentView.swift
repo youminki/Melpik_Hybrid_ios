@@ -238,7 +238,7 @@ struct WebView: UIViewRepresentable {
         // 네이티브 기능들을 JavaScript에 노출
         contentController.add(context.coordinator, name: "nativeBridge")
         
-        // JavaScript 함수들 추가
+        // JavaScript 함수들 추가 (인스타그램 방식)
         let script = """
         // 페이지 로드 시 로그인 상태 확인
         window.addEventListener('load', function() {
@@ -259,6 +259,123 @@ struct WebView: UIViewRepresentable {
                 sessionStorage.setItem('userName', localStorage.getItem('userName'));
                 sessionStorage.setItem('isLoggedIn', 'true');
             }
+        });
+        
+        // 인스타그램 방식: 앱에서 로그인 정보 수신
+        window.addEventListener('loginInfoReceived', function(e) {
+            console.log('=== loginInfoReceived event received ===');
+            console.log('Event detail:', e.detail);
+            
+            if (e.detail && e.detail.isLoggedIn && e.detail.userInfo) {
+                const { userInfo } = e.detail;
+                
+                // localStorage에 저장
+                localStorage.setItem('accessToken', userInfo.token);
+                localStorage.setItem('userId', userInfo.id);
+                localStorage.setItem('userEmail', userInfo.email);
+                localStorage.setItem('userName', userInfo.name);
+                if (userInfo.refreshToken) {
+                    localStorage.setItem('refreshToken', userInfo.refreshToken);
+                }
+                if (userInfo.expiresAt) {
+                    localStorage.setItem('tokenExpiresAt', userInfo.expiresAt);
+                }
+                localStorage.setItem('isLoggedIn', 'true');
+                
+                // sessionStorage에도 저장
+                sessionStorage.setItem('accessToken', userInfo.token);
+                sessionStorage.setItem('userId', userInfo.id);
+                sessionStorage.setItem('userEmail', userInfo.email);
+                sessionStorage.setItem('userName', userInfo.name);
+                sessionStorage.setItem('isLoggedIn', 'true');
+                
+                // 쿠키에도 저장
+                document.cookie = 'accessToken=' + userInfo.token + '; path=/; max-age=86400';
+                document.cookie = 'userId=' + userInfo.id + '; path=/; max-age=86400';
+                document.cookie = 'userEmail=' + userInfo.email + '; path=/; max-age=86400';
+                document.cookie = 'isLoggedIn=true; path=/; max-age=86400';
+                
+                // 전역 변수 설정
+                window.accessToken = userInfo.token;
+                window.userId = userInfo.id;
+                window.userEmail = userInfo.email;
+                window.userName = userInfo.name;
+                window.isLoggedIn = true;
+                
+                console.log('✅ Login info saved to all storages');
+                
+                // 페이지 새로고침 없이 로그인 상태 업데이트
+                if (window.location.pathname === '/login') {
+                    window.location.href = '/';
+                }
+            }
+        });
+        
+        // 인스타그램 방식: 토큰 갱신 이벤트 수신
+        window.addEventListener('tokenRefreshed', function(e) {
+            console.log('=== tokenRefreshed event received ===');
+            console.log('Event detail:', e.detail);
+            
+            if (e.detail && e.detail.tokenData) {
+                const { tokenData } = e.detail;
+                
+                // 새로운 토큰으로 업데이트
+                localStorage.setItem('accessToken', tokenData.token);
+                if (tokenData.refreshToken) {
+                    localStorage.setItem('refreshToken', tokenData.refreshToken);
+                }
+                if (tokenData.expiresAt) {
+                    localStorage.setItem('tokenExpiresAt', tokenData.expiresAt);
+                }
+                
+                sessionStorage.setItem('accessToken', tokenData.token);
+                if (tokenData.refreshToken) {
+                    sessionStorage.setItem('refreshToken', tokenData.refreshToken);
+                }
+                
+                document.cookie = 'accessToken=' + tokenData.token + '; path=/; max-age=86400';
+                
+                window.accessToken = tokenData.token;
+                
+                console.log('✅ Token refreshed in all storages');
+            }
+        });
+        
+        // 인스타그램 방식: 로그아웃 이벤트 수신
+        window.addEventListener('logoutSuccess', function(e) {
+            console.log('=== logoutSuccess event received ===');
+            
+            // 모든 로그인 관련 데이터 제거
+            localStorage.removeItem('accessToken');
+            localStorage.removeItem('userId');
+            localStorage.removeItem('userEmail');
+            localStorage.removeItem('userName');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('tokenExpiresAt');
+            localStorage.removeItem('isLoggedIn');
+            
+            sessionStorage.removeItem('accessToken');
+            sessionStorage.removeItem('userId');
+            sessionStorage.removeItem('userEmail');
+            sessionStorage.removeItem('userName');
+            sessionStorage.removeItem('refreshToken');
+            sessionStorage.removeItem('tokenExpiresAt');
+            sessionStorage.removeItem('isLoggedIn');
+            
+            // 쿠키 제거
+            document.cookie = 'accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+            document.cookie = 'userId=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+            document.cookie = 'userEmail=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+            document.cookie = 'isLoggedIn=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+            
+            // 전역 변수 제거
+            delete window.accessToken;
+            delete window.userId;
+            delete window.userEmail;
+            delete window.userName;
+            delete window.isLoggedIn;
+            
+            console.log('✅ Logout completed - all data removed');
         });
         
         window.nativeApp = {
@@ -284,123 +401,147 @@ struct WebView: UIViewRepresentable {
                 });
             },
             
-            // 카메라/갤러리
-            openImagePicker: function() {
-                window.webkit.messageHandlers.nativeBridge.postMessage({
-                    action: 'openImagePicker'
-                });
+            // 인스타그램 방식: 로그인 상태 유지 설정 저장
+            saveKeepLoginSetting: function(keepLogin) {
+                console.log('=== saveKeepLoginSetting called with keepLogin:', keepLogin);
+                localStorage.setItem('keepLoginSetting', keepLogin.toString());
+                sessionStorage.setItem('keepLoginSetting', keepLogin.toString());
+                document.cookie = 'keepLoginSetting=' + keepLogin + '; path=/; max-age=86400';
+                console.log('Keep login setting saved:', keepLogin);
             },
             
-            openCamera: function() {
-                window.webkit.messageHandlers.nativeBridge.postMessage({
-                    action: 'openCamera'
-                });
+            // 인스타그램 방식: 로그인 상태 유지 설정 가져오기
+            getKeepLoginSetting: function() {
+                const setting = localStorage.getItem('keepLoginSetting');
+                const result = setting === 'true';
+                console.log('Keep login setting retrieved:', result);
+                return result;
             },
             
-            // 공유 기능
-            share: function(url) {
-                window.webkit.messageHandlers.nativeBridge.postMessage({
-                    action: 'share',
-                    url: url
-                });
+            // 인스타그램 방식: 로그인 상태 유지 토큰 저장
+            saveTokensWithKeepLogin: function(accessToken, refreshToken, keepLogin) {
+                console.log('=== saveTokensWithKeepLogin called ===');
+                console.log('keepLogin:', keepLogin);
+                
+                // 로그인 상태 유지 설정 저장
+                this.saveKeepLoginSetting(keepLogin);
+                
+                if (keepLogin) {
+                    // 로그인 상태 유지: localStorage에 저장 (영구 보관)
+                    localStorage.setItem('accessToken', accessToken);
+                    if (refreshToken) {
+                        localStorage.setItem('refreshToken', refreshToken);
+                    }
+                    console.log('localStorage에 토큰 저장됨 (로그인 상태 유지)');
+                } else {
+                    // 세션 유지: sessionStorage에 저장 (브라우저 닫으면 삭제)
+                    sessionStorage.setItem('accessToken', accessToken);
+                    if (refreshToken) {
+                        sessionStorage.setItem('refreshToken', refreshToken);
+                    }
+                    console.log('sessionStorage에 토큰 저장됨 (세션 유지)');
+                }
+                
+                // 쿠키에도 저장 (웹뷰 호환성)
+                document.cookie = 'accessToken=' + accessToken + '; path=/; secure; samesite=strict';
+                if (refreshToken) {
+                    document.cookie = 'refreshToken=' + refreshToken + '; path=/; secure; samesite=strict';
+                }
+                
+                console.log('인스타그램 방식 토큰 저장 완료');
             },
             
-            // Safari에서 열기
-            openInSafari: function(url) {
-                window.webkit.messageHandlers.nativeBridge.postMessage({
-                    action: 'openInSafari',
-                    url: url
-                });
+            // 인스타그램 방식: 로그인 상태 유지 확인
+            checkInstagramLoginStatus: function() {
+                console.log('=== checkInstagramLoginStatus called ===');
+                
+                // localStorage와 sessionStorage 모두 확인
+                const localToken = localStorage.getItem('accessToken');
+                const sessionToken = sessionStorage.getItem('accessToken');
+                const cookieToken = this.getCookie('accessToken');
+                
+                const token = localToken || sessionToken || cookieToken;
+                
+                if (!token) {
+                    console.log('토큰이 없음');
+                    return false;
+                }
+                
+                try {
+                    const payload = JSON.parse(atob(token.split('.')[1]));
+                    const currentTime = Date.now() / 1000;
+                    
+                    // 토큰이 만료되었는지 확인
+                    if (payload.exp && payload.exp < currentTime) {
+                        console.log('토큰이 만료되어 로그인 상태 유지 불가');
+                        this.handleWebLogout();
+                        return false;
+                    }
+                    
+                    console.log('인스타그램 방식 로그인 상태 유지 가능');
+                    return true;
+                } catch (error) {
+                    console.log('토큰 파싱 오류로 로그인 상태 유지 불가:', error);
+                    this.handleWebLogout();
+                    return false;
+                }
             },
             
-            // 네트워크 상태
-            getNetworkStatus: function() {
-                window.webkit.messageHandlers.nativeBridge.postMessage({
-                    action: 'getNetworkStatus'
-                });
+            // 쿠키 가져오기 헬퍼 함수
+            getCookie: function(name) {
+                const value = '; ' + document.cookie;
+                const parts = value.split('; ' + name + '=');
+                if (parts.length === 2) return parts.pop().split(';').shift();
+                return null;
             },
             
-            // 앱 정보
-            getAppInfo: function() {
-                window.webkit.messageHandlers.nativeBridge.postMessage({
-                    action: 'getAppInfo'
-                });
+            // 웹 로그아웃 처리
+            handleWebLogout: function() {
+                console.log('=== handleWebLogout called ===');
+                
+                // 모든 저장소에서 토큰 삭제
+                localStorage.removeItem('accessToken');
+                localStorage.removeItem('refreshToken');
+                localStorage.removeItem('userEmail');
+                localStorage.removeItem('userId');
+                localStorage.removeItem('userName');
+                localStorage.removeItem('keepLoginSetting');
+                
+                sessionStorage.removeItem('accessToken');
+                sessionStorage.removeItem('refreshToken');
+                sessionStorage.removeItem('userEmail');
+                sessionStorage.removeItem('userId');
+                sessionStorage.removeItem('userName');
+                sessionStorage.removeItem('keepLoginSetting');
+                
+                // 쿠키에서도 삭제
+                document.cookie = 'accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                document.cookie = 'refreshToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                document.cookie = 'keepLoginSetting=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                
+                console.log('인스타그램 방식 로그아웃 처리 완료');
             },
             
-            // 로그인 관련
-            saveLoginInfo: function(loginData) {
-                window.webkit.messageHandlers.nativeBridge.postMessage({
-                    action: 'saveLoginInfo',
-                    loginData: loginData
-                });
-            },
-            
-            getLoginInfo: function() {
-                window.webkit.messageHandlers.nativeBridge.postMessage({
-                    action: 'getLoginInfo'
-                });
-            },
-            
-            logout: function() {
-                window.webkit.messageHandlers.nativeBridge.postMessage({
-                    action: 'logout'
-                });
-            },
-            
-            setAutoLogin: function(enabled) {
-                console.log('Auto login disabled - setting ignored');
-                window.webkit.messageHandlers.nativeBridge.postMessage({
-                    action: 'setAutoLogin',
-                    enabled: false
-                });
-            },
-            
-            // 하이브백
-            goBack: function() {
-                window.webkit.messageHandlers.nativeBridge.postMessage({
-                    action: 'goBack'
-                });
-            },
-            
-            // 새로고침
-            reload: function() {
-                window.webkit.messageHandlers.nativeBridge.postMessage({
-                    action: 'reload'
-                });
-            },
-            
-            // 카드 추가
-            addCard: function() {
-                window.webkit.messageHandlers.nativeBridge.postMessage({
-                    action: 'addCard'
-                });
-            },
-            
-            // 카드 목록 새로고침
-            refreshCardList: function() {
-                window.webkit.messageHandlers.nativeBridge.postMessage({
-                    action: 'refreshCardList'
-                });
-            },
-            
-            // 디버깅 도구
-            debugLoginState: function() {
-                window.webkit.messageHandlers.nativeBridge.postMessage({
-                    action: 'debugLoginState'
-                });
-            },
-            
-            forceSendLoginInfo: function() {
-                window.webkit.messageHandlers.nativeBridge.postMessage({
-                    action: 'forceSendLoginInfo'
-                });
-            },
-            
-            // 로그인 상태 강제 확인
+            // 로그인 상태 확인
             checkLoginStatus: function() {
-                window.webkit.messageHandlers.nativeBridge.postMessage({
-                    action: 'checkLoginStatus'
-                });
+                console.log('=== checkLoginStatus called ===');
+                
+                const isLoggedIn = localStorage.getItem('isLoggedIn') === 'true' || 
+                                  sessionStorage.getItem('isLoggedIn') === 'true';
+                const accessToken = localStorage.getItem('accessToken') || 
+                                   sessionStorage.getItem('accessToken');
+                
+                console.log('Current login status:');
+                console.log('- isLoggedIn:', isLoggedIn);
+                console.log('- accessToken:', accessToken ? 'exists' : 'nil');
+                
+                if (isLoggedIn && accessToken) {
+                    console.log('✅ User is logged in');
+                    return true;
+                } else {
+                    console.log('❌ User is not logged in');
+                    return false;
+                }
             },
             
             // 로그인 정보 강제 전송
@@ -614,6 +755,40 @@ struct WebView: UIViewRepresentable {
                 // 로그인 상태 확인
                 parent.loginManager.checkLoginStatus(webView: parent.webView)
                 
+            case "setKeepLogin":
+                if let enabled = body["enabled"] as? Bool {
+                    parent.loginManager.setKeepLogin(enabled: enabled)
+                }
+                
+            case "getKeepLoginSetting":
+                let keepLogin = parent.loginManager.getKeepLoginSetting()
+                let script = "window.dispatchEvent(new CustomEvent('keepLoginSettingReceived', { detail: { keepLogin: \(keepLogin) } }));"
+                parent.webView.evaluateJavaScript(script)
+                
+            case "saveKeepLoginSetting":
+                if let keepLogin = body["keepLogin"] as? Bool {
+                    parent.loginManager.saveKeepLoginSetting(keepLogin)
+                    print("Keep login setting saved: \(keepLogin)")
+                }
+                
+            case "saveTokensWithKeepLogin":
+                if let accessToken = body["accessToken"] as? String,
+                   let keepLogin = body["keepLogin"] as? Bool {
+                    let refreshToken = body["refreshToken"] as? String
+                    parent.loginManager.saveTokensWithKeepLogin(accessToken: accessToken, refreshToken: refreshToken, keepLogin: keepLogin)
+                    print("Tokens saved with keep login: \(keepLogin)")
+                }
+                
+            case "checkInstagramLoginStatus":
+                let isLoggedIn = parent.loginManager.checkInstagramLoginStatus()
+                let script = "window.dispatchEvent(new CustomEvent('instagramLoginStatusReceived', { detail: { isLoggedIn: \(isLoggedIn) } }));"
+                parent.webView.evaluateJavaScript(script)
+                print("Instagram login status checked: \(isLoggedIn)")
+                
+            case "initializeInstagramLoginStatus":
+                parent.loginManager.initializeInstagramLoginStatus()
+                print("Instagram login status initialized")
+                
             case "forceLoginInfo":
                 // 로그인 정보 강제 전송
                 if parent.loginManager.isLoggedIn {
@@ -779,6 +954,24 @@ struct ContentViewMain: View {
                 sendLoginInfoToWeb()
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TokenRefreshed"))) { notification in
+            if let tokenData = notification.userInfo?["tokenData"] as? [String: Any] {
+                sendTokenRefreshToWeb(tokenData: tokenData)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("LogoutRequested"))) { _ in
+            sendLogoutToWeb()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("ForceSendLoginInfo"))) { _ in
+            if loginManager.isLoggedIn {
+                loginManager.sendLoginInfoToWeb(webView: webViewStore.webView)
+            }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("KeepLoginSettingChanged"))) { notification in
+            if let keepLogin = notification.userInfo?["keepLogin"] as? Bool {
+                sendKeepLoginSettingToWeb(keepLogin: keepLogin)
+            }
+        }
     }
     
     private func setupApp() {
@@ -800,5 +993,65 @@ struct ContentViewMain: View {
     private func sendLoginInfoToWeb() {
         print("sendLoginInfoToWeb called")
         loginManager.sendLoginInfoToWeb(webView: webViewStore.webView)
+    }
+    
+    private func sendTokenRefreshToWeb(tokenData: [String: Any]) {
+        print("sendTokenRefreshToWeb called")
+        
+        if let jsonData = try? JSONSerialization.data(withJSONObject: tokenData),
+           let jsonString = String(data: jsonData, encoding: .utf8) {
+            
+            let script = """
+            window.dispatchEvent(new CustomEvent('tokenRefreshed', {
+                detail: {
+                    tokenData: \(jsonString)
+                }
+            }));
+            """
+            
+            webViewStore.webView.evaluateJavaScript(script) { result, error in
+                if let error = error {
+                    print("Error sending token refresh to web: \(error)")
+                } else {
+                    print("✅ Token refresh sent to web successfully")
+                }
+            }
+        }
+    }
+    
+    private func sendLogoutToWeb() {
+        print("sendLogoutToWeb called")
+        
+        let script = """
+        window.dispatchEvent(new CustomEvent('logoutSuccess'));
+        """
+        
+        webViewStore.webView.evaluateJavaScript(script) { result, error in
+            if let error = error {
+                print("Error sending logout to web: \(error)")
+            } else {
+                print("✅ Logout sent to web successfully")
+            }
+        }
+    }
+    
+    private func sendKeepLoginSettingToWeb(keepLogin: Bool) {
+        print("sendKeepLoginSettingToWeb called with keepLogin: \(keepLogin)")
+        
+        let script = """
+        window.dispatchEvent(new CustomEvent('keepLoginSettingChanged', {
+            detail: {
+                keepLogin: \(keepLogin)
+            }
+        }));
+        """
+        
+        webViewStore.webView.evaluateJavaScript(script) { result, error in
+            if let error = error {
+                print("Error sending keep login setting to web: \(error)")
+            } else {
+                print("✅ Keep login setting sent to web successfully")
+            }
+        }
     }
 } 
