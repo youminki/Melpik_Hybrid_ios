@@ -58,5 +58,18 @@
     <!-- 상태바 숨김 설정 -->
     <key>UIStatusBarHidden</key>
     <true/>
+    
+    <!-- 폰트 등록 -->
+    <key>UIAppFonts</key>
+    <array>
+        <string>NanumSquareR.ttf</string>
+        <string>NanumSquareB.ttf</string>
+        <string>NanumSquareEB.ttf</string>
+        <string>NanumSquareL.ttf</string>
+        <string>NanumSquareAcR.ttf</string>
+        <string>NanumSquareAcB.ttf</string>
+        <string>NanumSquareAcEB.ttf</string>
+        <string>NanumSquareAcL.ttf</string>
+    </array>
 </dict>
 </plist> 

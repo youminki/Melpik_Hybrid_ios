@@ -18,161 +18,165 @@ private enum Constants {
 
 // MARK: - ContentView
 struct ContentView: View {
-    @StateObject private var webViewStore = WebViewStore()
-    @StateObject private var appState = AppStateManager()
-    @StateObject private var locationManager = LocationManager()
-    @StateObject private var networkMonitor = NetworkMonitor()
-    @StateObject private var loginManager = LoginManager()
-    
-    @State private var isLoading = true
-    @State private var canGoBack = false
-    @State private var canGoForward = false
-    @State private var showingImagePicker = false
-    @State private var showingCamera = false
-    @State private var showingShareSheet = false
-    @State private var showingSafari = false
-    @State private var selectedImage: UIImage?
-    @State private var shareURL: URL?
-    @State private var showingAlert = false
-    @State private var showingCardAddView = false
-    @State private var cardAddCompletion: ((Bool, String?) -> Void)?
-    
+    var body: some View {
+        TypingLoadingView()
+    }
+}
+
+struct TypingLoadingView: View {
+    let slogan1 = "이젠 "
+    let slogan2 = "멜픽"
+    let slogan3 = "을 통해"
+    let slogan4 = "브랜드를 골라보세요"
+    let sloganSub = "사고, 팔고, 빌리는 것을 한번에!"
+
+    @State private var displayed1 = ""
+    @State private var displayed2 = ""
+    @State private var displayed3 = ""
+    @State private var displayed4 = ""
+    @State private var displayedSub = ""
+    @State private var showWebView = false
+    @State private var webViewOpacity: Double = 0
+    @State private var loadingOpacity: Double = 1
+
+    // 웹뷰를 미리 생성해두기
+    @State private var webViewContainer = MainWebViewContainer()
+
     var body: some View {
         ZStack {
-            // 전체 배경색 설정
-            Color(.systemBackground)
-                .ignoresSafeArea(.all, edges: .all)
-            
-            // 웹뷰 (상단 헤더 제거, 하단 safe area 무시)
-            WebView(
-                webView: webViewStore.webView,
-                isLoading: $isLoading,
-                canGoBack: $canGoBack,
-                canGoForward: $canGoForward,
-                appState: appState,
-                locationManager: locationManager,
-                networkMonitor: networkMonitor,
-                loginManager: loginManager,
-                onImagePicker: { showingImagePicker = true },
-                onCamera: { showingCamera = true },
-                onShare: { url in
-                    shareURL = url
-                    showingShareSheet = true
-                },
-                onSafari: { url in
-                    shareURL = url
-                    showingSafari = true
-                }
-            )
-            .overlay(loadingOverlay)
-            .ignoresSafeArea(.all, edges: .bottom)
-        }
-        .statusBarHidden(false)
-        .navigationBarHidden(true)
-        .preferredColorScheme(.light)
-        .onAppear {
-            // 상태바 스타일 설정은 SwiftUI에서 자동으로 처리됨
-        }
-        .sheet(isPresented: $showingImagePicker) {
-            ImagePicker(selectedImage: $selectedImage, sourceType: .photoLibrary)
-        }
-        .sheet(isPresented: $showingCamera) {
-            ImagePicker(selectedImage: $selectedImage, sourceType: .camera)
-        }
-        .sheet(isPresented: $showingShareSheet) {
-            if let url = shareURL {
-                ShareSheet(activityItems: [url])
-            }
-        }
-        .sheet(isPresented: $showingSafari) {
-            if let url = shareURL {
-                SafariView(url: url)
-            }
-        }
-        .sheet(isPresented: $showingCardAddView) {
-            if let completion = cardAddCompletion {
-                CardAddView { success, error in
-                    completion(success, error)
-                    showingCardAddView = false
-                }
-            }
-        }
-        .alert("제목", isPresented: $showingAlert) {
-            Button("확인", role: .cancel) { }
-        } message: {
-            Text("메시지")
+            // 웹뷰는 항상 존재, opacity로만 제어
+            webViewContainer
+                .opacity(webViewOpacity)
+                .animation(.easeInOut(duration: 0.7), value: webViewOpacity)
+
+            // 로딩뷰도 opacity로만 제어
+            loadingBody
+                .opacity(loadingOpacity)
+                .animation(.easeInOut(duration: 0.7), value: loadingOpacity)
         }
         .onAppear {
-            setupApp()
-            
-            // 앱 시작 시 로그인 상태 확인
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                loginManager.checkLoginStatus(webView: webViewStore.webView)
-            }
-            
-            // 카드 추가 화면 표시 알림 수신
-            NotificationCenter.default.addObserver(
-                forName: NSNotification.Name("ShowCardAddView"),
-                object: nil,
-                queue: .main
-            ) { notification in
-                if let completion = notification.userInfo?["completion"] as? (Bool, String?) -> Void {
-                    self.cardAddCompletion = completion
-                    self.showingCardAddView = true
+            startTyping()
+        }
+    }
+
+    var loadingBody: some View {
+        VStack {
+            Spacer().frame(height: 135) // 로그인 박스 margin-top과 동일하게
+            VStack(alignment: .center, spacing: 0) {
+                // 로고
+                Image("LoadingMelPick")
+                    .resizable()
+                    .frame(width: 184, height: 83)
+                    .padding(.bottom, 24) // 로그인 박스와 동일
+                // 슬로건 (웹과 동일한 구조)
+                VStack(spacing: 0) {
+                    // 첫 번째 줄: "이젠 멜픽을 통해"
+                    HStack(spacing: 0) {
+                        Text(displayed1)
+                            .font(.custom("NanumSquareEB", size: 18)) // 나눔스퀘어 ExtraBold
+                            .foregroundColor(Color(hex: "#222"))
+                        Text(displayed2)
+                            .font(.custom("NanumSquareEB", size: 18)) // 나눔스퀘어 ExtraBold
+                            .foregroundColor(Color(hex: "#F6AE24"))
+                        Text(displayed3)
+                            .font(.custom("NanumSquareEB", size: 18)) // 나눔스퀘어 ExtraBold
+                            .foregroundColor(Color(hex: "#222"))
+                    }
+                    .frame(maxWidth: .infinity)
+                    .multilineTextAlignment(.center)
+                    
+                    // 두 번째 줄: "브랜드를 골라보세요"
+                    Text(displayed4)
+                        .font(.custom("NanumSquareEB", size: 18)) // 나눔스퀘어 ExtraBold
+                        .foregroundColor(Color(hex: "#222"))
+                        .frame(maxWidth: .infinity)
+                        .multilineTextAlignment(.center)
+                        .lineSpacing(1.5) // 웹의 line-height: 1.5와 동일
+                        .padding(.bottom, 18) // 웹의 margin-bottom: 18px와 동일
+                    
+                    // 서브슬로건: "사고, 팔고, 빌리는 것을 한번에!"
+                    if !displayedSub.isEmpty {
+                        Text(displayedSub)
+                            .font(.custom("NanumSquareB", size: 15)) // 나눔스퀘어 Bold
+                            .foregroundColor(Color(hex: "#888")) // 웹의 color: #888
+                            .frame(maxWidth: .infinity)
+                            .multilineTextAlignment(.center)
+                            .padding(.top, 4) // 웹의 margin-top: 4px
+                    }
                 }
             }
-            
-            // 디버깅 도구 실행 (개발 중에만 사용)
-            #if DEBUG
-            DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
-                DebugHelper.shared.runFullDebug(loginManager: loginManager, webView: webViewStore.webView)
+            Spacer()
+        }
+        .background(Color.white.ignoresSafeArea())
+    }
+
+    func startTyping() {
+        displayed1 = ""; displayed2 = ""; displayed3 = ""; displayed4 = ""; displayedSub = ""
+        typeLine(slogan1, into: $displayed1) {
+            typeLine(slogan2, into: $displayed2) {
+                typeLine(slogan3, into: $displayed3) {
+                    typeLine(slogan4, into: $displayed4) {
+                        typeLine(sloganSub, into: $displayedSub) {
+                            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                                // opacity만 부드럽게 전환
+                                withAnimation {
+                                    loadingOpacity = 0
+                                    webViewOpacity = 1
+                                }
+                            }
+                        }
+                    }
+                }
             }
-            #endif
         }
-        .onReceive(appState.$pushToken) { token in
-            if let token = token {
-                sendPushTokenToWeb(token: token)
+    }
+
+    func typeLine(_ text: String, into binding: Binding<String>, completion: @escaping () -> Void) {
+        binding.wrappedValue = ""
+        var idx = 0
+        Timer.scheduledTimer(withTimeInterval: 0.06, repeats: true) { timer in
+            if idx < text.count {
+                let i = text.index(text.startIndex, offsetBy: idx+1)
+                binding.wrappedValue = String(text[..<i])
+                idx += 1
+            } else {
+                timer.invalidate()
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1, execute: completion)
             }
         }
-        .onReceive(loginManager.$isLoggedIn) { isLoggedIn in
-            print("isLoggedIn changed: \(isLoggedIn)")
-            if isLoggedIn {
-                sendLoginInfoToWeb()
-            }
+    }
+}
+
+// HEX 컬러 지원 익스텐션
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
+        var int: UInt64 = 0
+        Scanner(string: hex).scanHexInt64(&int)
+        let a, r, g, b: UInt64
+        switch hex.count {
+        case 3: // RGB (12-bit)
+            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
+        case 6: // RGB (24-bit)
+            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
+        case 8: // ARGB (32-bit)
+            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
+        default:
+            (a, r, g, b) = (255, 0, 0, 0)
         }
+        self.init(
+            .sRGB,
+            red: Double(r) / 255,
+            green: Double(g) / 255,
+            blue:  Double(b) / 255,
+            opacity: Double(a) / 255
+        )
     }
-    
-    // MARK: - Loading Overlay
-    @ViewBuilder
-    private var loadingOverlay: some View {
-        if isLoading {
-            LoadingView()
-        }
-    }
-    
-    // MARK: - Private Methods
-    private func setupApp() {
-        // 푸시 알림 권한 요청
-        appState.requestPushNotificationPermission()
-        
-        // 위치 서비스 권한 요청
-        locationManager.requestLocationPermission()
-        
-        // 생체 인증 설정
-        appState.setupBiometricAuth()
-        
-        // 네트워크 모니터링 시작
-        networkMonitor.startMonitoring()
-    }
-    
-    private func sendPushTokenToWeb(token: String) {
-        let script = "window.dispatchEvent(new CustomEvent('pushTokenReceived', { detail: '\(token)' }));"
-        webViewStore.webView.evaluateJavaScript(script)
-    }
-    
-    private func sendLoginInfoToWeb() {
-        print("sendLoginInfoToWeb called")
-        loginManager.sendLoginInfoToWeb(webView: webViewStore.webView)
+}
+
+struct MainWebViewContainer: View {
+    var body: some View {
+        ContentViewMain()
     }
 }
 
@@ -648,4 +652,146 @@ class WebViewStore: ObservableObject {
 // MARK: - Preview
 #Preview {
     ContentView()
+}
+
+// 아래에 기존 ContentView의 웹뷰 관련 전체 코드를 ContentViewMain으로 옮깁니다.
+
+struct ContentViewMain: View {
+    @StateObject private var webViewStore = WebViewStore()
+    @StateObject private var appState = AppStateManager()
+    @StateObject private var locationManager = LocationManager()
+    @StateObject private var networkMonitor = NetworkMonitor()
+    @StateObject private var loginManager = LoginManager()
+    
+    @State private var isLoading = true
+    @State private var canGoBack = false
+    @State private var canGoForward = false
+    @State private var showingImagePicker = false
+    @State private var showingCamera = false
+    @State private var showingShareSheet = false
+    @State private var showingSafari = false
+    @State private var selectedImage: UIImage?
+    @State private var shareURL: URL?
+    @State private var showingAlert = false
+    @State private var showingCardAddView = false
+    @State private var cardAddCompletion: ((Bool, String?) -> Void)?
+
+    var body: some View {
+        ZStack {
+            // 전체 배경색 설정
+            Color(.systemBackground)
+                .ignoresSafeArea(.all, edges: .all)
+            
+            // 웹뷰 (상단 헤더 제거, 하단 safe area 무시)
+            WebView(
+                webView: webViewStore.webView,
+                isLoading: $isLoading,
+                canGoBack: $canGoBack,
+                canGoForward: $canGoForward,
+                appState: appState,
+                locationManager: locationManager,
+                networkMonitor: networkMonitor,
+                loginManager: loginManager,
+                onImagePicker: { showingImagePicker = true },
+                onCamera: { showingCamera = true },
+                onShare: { url in
+                    shareURL = url
+                    showingShareSheet = true
+                },
+                onSafari: { url in
+                    shareURL = url
+                    showingSafari = true
+                }
+            )
+            .ignoresSafeArea(.all, edges: .bottom)
+        }
+        .statusBarHidden(false)
+        .navigationBarHidden(true)
+        .preferredColorScheme(.light)
+        .onAppear {
+            setupApp()
+            // 앱 시작 시 로그인 상태 확인
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+                loginManager.checkLoginStatus(webView: webViewStore.webView)
+            }
+            // 카드 추가 화면 표시 알림 수신
+            NotificationCenter.default.addObserver(
+                forName: NSNotification.Name("ShowCardAddView"),
+                object: nil,
+                queue: .main
+            ) { notification in
+                if let completion = notification.userInfo?["completion"] as? (Bool, String?) -> Void {
+                    self.cardAddCompletion = completion
+                    self.showingCardAddView = true
+                }
+            }
+            // 디버깅 도구 실행 (개발 중에만 사용)
+            #if DEBUG
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) {
+                DebugHelper.shared.runFullDebug(loginManager: loginManager, webView: webViewStore.webView)
+            }
+            #endif
+        }
+        .sheet(isPresented: $showingImagePicker) {
+            ImagePicker(selectedImage: $selectedImage, sourceType: .photoLibrary)
+        }
+        .sheet(isPresented: $showingCamera) {
+            ImagePicker(selectedImage: $selectedImage, sourceType: .camera)
+        }
+        .sheet(isPresented: $showingShareSheet) {
+            if let url = shareURL {
+                ShareSheet(activityItems: [url])
+            }
+        }
+        .sheet(isPresented: $showingSafari) {
+            if let url = shareURL {
+                SafariView(url: url)
+            }
+        }
+        .sheet(isPresented: $showingCardAddView) {
+            if let completion = cardAddCompletion {
+                CardAddView { success, error in
+                    completion(success, error)
+                    showingCardAddView = false
+                }
+            }
+        }
+        .alert("제목", isPresented: $showingAlert) {
+            Button("확인", role: .cancel) { }
+        } message: {
+            Text("메시지")
+        }
+        .onReceive(appState.$pushToken) { token in
+            if let token = token {
+                sendPushTokenToWeb(token: token)
+            }
+        }
+        .onReceive(loginManager.$isLoggedIn) { isLoggedIn in
+            print("isLoggedIn changed: \(isLoggedIn)")
+            if isLoggedIn {
+                sendLoginInfoToWeb()
+            }
+        }
+    }
+    
+    private func setupApp() {
+        // 푸시 알림 권한 요청
+        appState.requestPushNotificationPermission()
+        // 위치 서비스 권한 요청
+        locationManager.requestLocationPermission()
+        // 생체 인증 설정
+        appState.setupBiometricAuth()
+        // 네트워크 모니터링 시작
+        networkMonitor.startMonitoring()
+    }
+    
+    private func sendPushTokenToWeb(token: String) {
+        let script = "window.dispatchEvent(new CustomEvent('pushTokenReceived', { detail: '\(token)' }));"
+        webViewStore.webView.evaluateJavaScript(script)
+    }
+    
+    private func sendLoginInfoToWeb() {
+        print("sendLoginInfoToWeb called")
+        loginManager.sendLoginInfoToWeb(webView: webViewStore.webView)
+    }
 } 

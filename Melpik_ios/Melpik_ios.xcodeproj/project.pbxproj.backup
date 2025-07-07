@@ -27,7 +27,26 @@
 		D7040DA32E123DB500860243 /* Melpik.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Melpik.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		D7040DB32E123DB700860243 /* Melpik_iosTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Melpik_iosTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		D7040DBD2E123DB700860243 /* Melpik_iosUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = Melpik_iosUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		D7040DC12E123DB700860243 /* NanumSquareR.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = NanumSquareR.ttf; sourceTree = "<group>"; };
+		D7040DC22E123DB700860243 /* NanumSquareB.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = NanumSquareB.ttf; sourceTree = "<group>"; };
+		D7040DC32E123DB700860243 /* NanumSquareEB.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = NanumSquareEB.ttf; sourceTree = "<group>"; };
+		D7040DC42E123DB700860243 /* NanumSquareL.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = NanumSquareL.ttf; sourceTree = "<group>"; };
+		D7040DC52E123DB700860243 /* NanumSquareAcR.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = NanumSquareAcR.ttf; sourceTree = "<group>"; };
+		D7040DC62E123DB700860243 /* NanumSquareAcB.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = NanumSquareAcB.ttf; sourceTree = "<group>"; };
+		D7040DC72E123DB700860243 /* NanumSquareAcEB.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = NanumSquareAcEB.ttf; sourceTree = "<group>"; };
+		D7040DC82E123DB700860243 /* NanumSquareAcL.ttf */ = {isa = PBXFileReference; lastKnownFileType = file; path = NanumSquareAcL.ttf; sourceTree = "<group>"; };
 /* End PBXFileReference section */
+
+/* Begin PBXBuildFile section */
+		D7040DC92E123DB700860243 /* NanumSquareR.ttf in Resources */ = {isa = PBXBuildFile; fileRef = D7040DC12E123DB700860243 /* NanumSquareR.ttf */; };
+		D7040DCA2E123DB700860243 /* NanumSquareB.ttf in Resources */ = {isa = PBXBuildFile; fileRef = D7040DC22E123DB700860243 /* NanumSquareB.ttf */; };
+		D7040DCB2E123DB700860243 /* NanumSquareEB.ttf in Resources */ = {isa = PBXBuildFile; fileRef = D7040DC32E123DB700860243 /* NanumSquareEB.ttf */; };
+		D7040DCC2E123DB700860243 /* NanumSquareL.ttf in Resources */ = {isa = PBXBuildFile; fileRef = D7040DC42E123DB700860243 /* NanumSquareL.ttf */; };
+		D7040DCD2E123DB700860243 /* NanumSquareAcR.ttf in Resources */ = {isa = PBXBuildFile; fileRef = D7040DC52E123DB700860243 /* NanumSquareAcR.ttf */; };
+		D7040DCE2E123DB700860243 /* NanumSquareAcB.ttf in Resources */ = {isa = PBXBuildFile; fileRef = D7040DC62E123DB700860243 /* NanumSquareAcB.ttf */; };
+		D7040DCF2E123DB700860243 /* NanumSquareAcEB.ttf in Resources */ = {isa = PBXBuildFile; fileRef = D7040DC72E123DB700860243 /* NanumSquareAcEB.ttf */; };
+		D7040DD02E123DB700860243 /* NanumSquareAcL.ttf in Resources */ = {isa = PBXBuildFile; fileRef = D7040DC82E123DB700860243 /* NanumSquareAcL.ttf */; };
+/* End PBXBuildFile section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		D7040DA52E123DB500860243 /* Melpik_ios */ = {
@@ -212,6 +231,14 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				D7040DC92E123DB700860243 /* NanumSquareR.ttf in Resources */,
+				D7040DCA2E123DB700860243 /* NanumSquareB.ttf in Resources */,
+				D7040DCB2E123DB700860243 /* NanumSquareEB.ttf in Resources */,
+				D7040DCC2E123DB700860243 /* NanumSquareL.ttf in Resources */,
+				D7040DCD2E123DB700860243 /* NanumSquareAcR.ttf in Resources */,
+				D7040DCE2E123DB700860243 /* NanumSquareAcB.ttf in Resources */,
+				D7040DCF2E123DB700860243 /* NanumSquareAcEB.ttf in Resources */,
+				D7040DD02E123DB700860243 /* NanumSquareAcL.ttf in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
