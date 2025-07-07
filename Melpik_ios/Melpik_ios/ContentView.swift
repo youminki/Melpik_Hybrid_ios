@@ -146,17 +146,7 @@ struct ContentView: View {
     @ViewBuilder
     private var loadingOverlay: some View {
         if isLoading {
-            VStack(spacing: 12) {
-                ProgressView()
-                    .scaleEffect(Constants.loadingSpinnerScale)
-                    .progressViewStyle(CircularProgressViewStyle(tint: .blue))
-                
-                Text("로딩 중...")
-                    .font(.system(size: Constants.loadingTextSize, weight: .medium))
-                    .foregroundColor(.secondary)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(Color(.systemBackground))
+            LoadingView()
         }
     }
     
@@ -239,6 +229,27 @@ struct WebView: UIViewRepresentable {
         
         // JavaScript 함수들 추가
         let script = """
+        // 페이지 로드 시 로그인 상태 확인
+        window.addEventListener('load', function() {
+            if (window.nativeApp && window.nativeApp.checkLoginStatus) {
+                setTimeout(function() {
+                    window.nativeApp.checkLoginStatus();
+                }, 1000);
+            }
+        });
+        
+        // 페이지 이동 시 로그인 상태 유지
+        window.addEventListener('beforeunload', function() {
+            // 로그인 정보를 sessionStorage에 백업
+            if (localStorage.getItem('accessToken')) {
+                sessionStorage.setItem('accessToken', localStorage.getItem('accessToken'));
+                sessionStorage.setItem('userId', localStorage.getItem('userId'));
+                sessionStorage.setItem('userEmail', localStorage.getItem('userEmail'));
+                sessionStorage.setItem('userName', localStorage.getItem('userName'));
+                sessionStorage.setItem('isLoggedIn', 'true');
+            }
+        });
+        
         window.nativeApp = {
             // 푸시 알림
             requestPushPermission: function() {
@@ -254,8 +265,9 @@ struct WebView: UIViewRepresentable {
                 });
             },
             
-            // 생체 인증
+            // 생체 인증 (비활성화)
             authenticateWithBiometrics: function() {
+                console.log('Biometric authentication disabled');
                 window.webkit.messageHandlers.nativeBridge.postMessage({
                     action: 'authenticateWithBiometrics'
                 });
@@ -325,9 +337,10 @@ struct WebView: UIViewRepresentable {
             },
             
             setAutoLogin: function(enabled) {
+                console.log('Auto login disabled - setting ignored');
                 window.webkit.messageHandlers.nativeBridge.postMessage({
                     action: 'setAutoLogin',
-                    enabled: enabled
+                    enabled: false
                 });
             },
             
@@ -370,6 +383,20 @@ struct WebView: UIViewRepresentable {
                 window.webkit.messageHandlers.nativeBridge.postMessage({
                     action: 'forceSendLoginInfo'
                 });
+            },
+            
+            // 로그인 상태 강제 확인
+            checkLoginStatus: function() {
+                window.webkit.messageHandlers.nativeBridge.postMessage({
+                    action: 'checkLoginStatus'
+                });
+            },
+            
+            // 로그인 정보 강제 전송
+            forceLoginInfo: function() {
+                window.webkit.messageHandlers.nativeBridge.postMessage({
+                    action: 'forceLoginInfo'
+                });
             }
         };
         """
@@ -403,21 +430,23 @@ struct WebView: UIViewRepresentable {
             let currentURL = webView.url?.absoluteString ?? "nil"
             print("Current URL: \(currentURL)")
 
-            // 로그인 페이지 진입 시 Face ID 인증 시도
+            // 로그인 페이지 진입 시 자동 인증 비활성화
             if currentURL.starts(with: "https://me1pik.com/login") {
-                parent.loginManager.authenticateWithBiometrics { [weak self] success in
-                    guard let self = self, success else { return }
-                    // 인증 성공 시 로그인 정보 웹뷰에 전달
-                    DispatchQueue.main.async {
+                print("Login page detected - auto authentication disabled")
+            }
+
+            // 웹뷰 로딩 완료 시 로그인 상태 확인 및 전달 (지연 시간 단축)
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                print("Checking login status after webview load...")
+                self.parent.loginManager.checkLoginStatus(webView: self.parent.webView)
+                
+                // 추가로 2초 후 한 번 더 확인 (웹사이트가 완전히 로드된 후)
+                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                    if self.parent.loginManager.isLoggedIn {
+                        print("Re-checking login status after 2 seconds...")
                         self.parent.loginManager.sendLoginInfoToWeb(webView: self.parent.webView)
                     }
                 }
-            }
-
-            // 기존: 웹뷰 로딩 완료 시 로그인 상태 확인 및 전달
-            DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
-                print("Checking login status after webview load...")
-                self.parent.loginManager.checkLoginStatus(webView: self.parent.webView)
             }
         }
         
@@ -454,11 +483,9 @@ struct WebView: UIViewRepresentable {
                 }
                 
             case "authenticateWithBiometrics":
-                parent.appState.authenticateWithBiometrics { [weak self] success in
-                    guard let self = self else { return }
-                    let script = "window.dispatchEvent(new CustomEvent('biometricAuthResult', { detail: { success: \(success) } }));"
-                    self.parent.webView.evaluateJavaScript(script)
-                }
+                // 생체 인증 비활성화 - 항상 실패 반환
+                let script = "window.dispatchEvent(new CustomEvent('biometricAuthResult', { detail: { success: false } }));"
+                parent.webView.evaluateJavaScript(script)
                 
             case "openImagePicker":
                 parent.onImagePicker()
@@ -529,9 +556,8 @@ struct WebView: UIViewRepresentable {
                 parent.loginManager.logout()
                 
             case "setAutoLogin":
-                if let enabled = body["enabled"] as? Bool {
-                    parent.loginManager.setAutoLogin(enabled: enabled)
-                }
+                // 자동 로그인 비활성화 - 설정 무시
+                parent.loginManager.setAutoLogin(enabled: false)
                 
             case "goBack":
                 if parent.webView.canGoBack {
@@ -572,6 +598,16 @@ struct WebView: UIViewRepresentable {
             case "forceSendLoginInfo":
                 // 강제 로그인 정보 전송
                 DebugHelper.shared.forceSendLoginInfo(loginManager: parent.loginManager, webView: parent.webView)
+                
+            case "checkLoginStatus":
+                // 로그인 상태 확인
+                parent.loginManager.checkLoginStatus(webView: parent.webView)
+                
+            case "forceLoginInfo":
+                // 로그인 정보 강제 전송
+                if parent.loginManager.isLoggedIn {
+                    parent.loginManager.sendLoginInfoToWeb(webView: parent.webView)
+                }
                 
             default:
                 break

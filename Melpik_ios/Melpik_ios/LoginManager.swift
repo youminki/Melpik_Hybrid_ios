@@ -19,21 +19,22 @@ class LoginManager: ObservableObject {
     
     private let keychainService = "com.melpik.app.login"
     private let userDefaults = UserDefaults.standard
+    private var isInitializing = false
     
     init() {
         loadLoginState()
     }
     
+    deinit {
+        print("LoginManager deinit")
+    }
+    
     // MARK: - 로그인 상태 저장
     @MainActor
     func saveLoginState(userInfo: UserInfo) {
-        print("saveLoginState called, userInfo: \(userInfo)")
+        guard !isInitializing else { return }
         
-        // @Published 프로퍼티 업데이트
-        DispatchQueue.main.async { [weak self] in
-            self?.userInfo = userInfo
-            self?.isLoggedIn = true
-        }
+        print("saveLoginState called, userInfo: \(userInfo)")
         
         // UserDefaults에 기본 정보 저장
         userDefaults.set(true, forKey: "isLoggedIn")
@@ -53,6 +54,13 @@ class LoginManager: ObservableObject {
         // 자동 로그인 설정 저장
         userDefaults.set(true, forKey: "autoLoginEnabled")
         userDefaults.synchronize()
+        
+        // @Published 프로퍼티 업데이트를 메인 스레드에서 안전하게 처리
+        Task { @MainActor in
+            self.userInfo = userInfo
+            self.isLoggedIn = true
+        }
+        
         print("[saveLoginState] isLoggedIn:", isLoggedIn)
         print("[saveLoginState] userId:", userDefaults.string(forKey: "userId") ?? "nil")
         print("[saveLoginState] userEmail:", userDefaults.string(forKey: "userEmail") ?? "nil")
@@ -65,110 +73,22 @@ class LoginManager: ObservableObject {
     // MARK: - 로그인 상태 복원
     @MainActor
     func loadLoginState() {
+        guard !isInitializing else { return }
+        isInitializing = true
+        
         print("=== loadLoginState called ===")
-        DispatchQueue.main.async { [weak self] in self?.isLoading = true }
-        
-        // 자동 로그인이 활성화되어 있는지 확인
-        let autoLoginEnabled = userDefaults.bool(forKey: "autoLoginEnabled")
-        let isLoggedIn = userDefaults.bool(forKey: "isLoggedIn")
-        let userId = userDefaults.string(forKey: "userId")
-        let userEmail = userDefaults.string(forKey: "userEmail")
-        let userName = userDefaults.string(forKey: "userName")
-        let accessTokenFromDefaults = userDefaults.string(forKey: "accessToken")
-        let refreshTokenFromDefaults = userDefaults.string(forKey: "refreshToken")
-        let expiresAt = userDefaults.object(forKey: "tokenExpiresAt")
-        let accessTokenFromKeychain = loadFromKeychain(key: "accessToken")
-        let refreshTokenFromKeychain = loadFromKeychain(key: "refreshToken")
-        
-        print("=== UserDefaults values ===")
-        print("autoLoginEnabled: \(autoLoginEnabled)")
-        print("isLoggedIn: \(isLoggedIn)")
-        print("userId: \(userId ?? "nil")")
-        print("userEmail: \(userEmail ?? "nil")")
-        print("userName: \(userName ?? "nil")")
-        print("accessToken (UserDefaults): \(accessTokenFromDefaults ?? "nil")")
-        print("refreshToken (UserDefaults): \(refreshTokenFromDefaults ?? "nil")")
-        print("expiresAt: \(expiresAt != nil ? "\(expiresAt!)" : "nil")")
-        
-        print("=== Keychain values ===")
-        print("accessToken (Keychain): \(accessTokenFromKeychain ?? "nil")")
-        print("refreshToken (Keychain): \(refreshTokenFromKeychain ?? "nil")")
-        
-        if autoLoginEnabled && isLoggedIn {
-            print("=== Attempting to restore login state ===")
-            
-            // UserDefaults에서 먼저 확인
-            if let accessToken = accessTokenFromDefaults {
-                print("✅ Found accessToken in UserDefaults")
-                
-                let userInfo = UserInfo(
-                    id: userId ?? "",
-                    email: userEmail ?? "",
-                    name: userName ?? "",
-                    token: accessToken,
-                    refreshToken: refreshTokenFromDefaults,
-                    expiresAt: expiresAt as? Date
-                )
-                
-                print("Created UserInfo from UserDefaults: \(userInfo)")
-                
-                // 토큰이 만료되지 않았는지 확인
-                if !userInfo.isTokenExpired {
-                    DispatchQueue.main.async { [weak self] in
-                        self?.userInfo = userInfo
-                        self?.isLoggedIn = true
-                    }
-                    print("✅ Login state restored successfully")
-                } else {
-                    print("❌ Token is expired")
-                    if let refreshToken = refreshTokenFromDefaults {
-                        print("🔄 Attempting token refresh...")
-                        refreshAccessToken(refreshToken: refreshToken)
-                    } else {
-                        print("❌ No refresh token available, logging out")
-                        logout()
-                    }
-                }
-            } else if let accessToken = accessTokenFromKeychain {
-                print("✅ Found accessToken in Keychain")
-                
-                let userInfo = UserInfo(
-                    id: userId ?? "",
-                    email: userEmail ?? "",
-                    name: userName ?? "",
-                    token: accessToken,
-                    refreshToken: refreshTokenFromKeychain,
-                    expiresAt: expiresAt as? Date
-                )
-                
-                print("Created UserInfo from Keychain: \(userInfo)")
-                
-                if !userInfo.isTokenExpired {
-                    DispatchQueue.main.async { [weak self] in
-                        self?.userInfo = userInfo
-                        self?.isLoggedIn = true
-                    }
-                    print("✅ Login state restored successfully from Keychain")
-                } else {
-                    print("❌ Token is expired")
-                    if let refreshToken = refreshTokenFromKeychain {
-                        print("🔄 Attempting token refresh...")
-                        refreshAccessToken(refreshToken: refreshToken)
-                    } else {
-                        print("❌ No refresh token available, logging out")
-                        logout()
-                    }
-                }
-            } else {
-                print("❌ No access token found in UserDefaults or Keychain")
-                logout()
-            }
-        } else {
-            print("❌ Auto login not enabled or user not logged in")
-            logout()
+        Task { @MainActor in
+            self.isLoading = true
         }
         
-        DispatchQueue.main.async { [weak self] in self?.isLoading = false }
+        // 자동 로그인 비활성화 - 항상 로그아웃 상태로 시작
+        print("=== Auto login disabled - starting with logout state ===")
+        logout()
+        
+        Task { @MainActor in
+            self.isLoading = false
+        }
+        isInitializing = false
     }
     
     // MARK: - 토큰 갱신
@@ -190,10 +110,7 @@ class LoginManager: ObservableObject {
     
     // MARK: - 로그아웃
     func logout() {
-        DispatchQueue.main.async { [weak self] in
-            self?.isLoggedIn = false
-            self?.userInfo = nil
-        }
+        print("=== logout called ===")
         
         // UserDefaults에서 로그인 정보 제거
         userDefaults.removeObject(forKey: "isLoggedIn")
@@ -206,15 +123,25 @@ class LoginManager: ObservableObject {
         // Keychain에서 토큰 제거
         deleteFromKeychain(key: "accessToken")
         deleteFromKeychain(key: "refreshToken")
+        
+        // @Published 프로퍼티 업데이트를 메인 스레드에서 안전하게 처리
+        Task { @MainActor in
+            self.isLoggedIn = false
+            self.userInfo = nil
+        }
+        
+        print("✅ Logout completed")
     }
     
-    // MARK: - 자동 로그인 설정
+    // MARK: - 자동 로그인 설정 (비활성화)
     func setAutoLogin(enabled: Bool) {
-        userDefaults.set(enabled, forKey: "autoLoginEnabled")
+        // 자동 로그인 기능 비활성화
+        userDefaults.set(false, forKey: "autoLoginEnabled")
     }
     
     func isAutoLoginEnabled() -> Bool {
-        return userDefaults.bool(forKey: "autoLoginEnabled")
+        // 항상 false 반환 (자동 로그인 비활성화)
+        return false
     }
     
     // MARK: - Keychain 관리
@@ -269,19 +196,11 @@ class LoginManager: ObservableObject {
         SecItemDelete(query as CFDictionary)
     }
     
-    // MARK: - 생체 인증을 통한 로그인
+    // MARK: - 생체 인증을 통한 로그인 (비활성화)
     func authenticateWithBiometrics(completion: @escaping (Bool) -> Void) {
-        let context = LAContext()
-        let reason = "저장된 로그인 정보에 접근합니다"
-        
-        context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { [weak self] success, error in
-            DispatchQueue.main.async {
-                if success {
-                    // 생체 인증 성공 시 저장된 로그인 정보 복원
-                    self?.loadLoginState()
-                }
-                completion(success)
-            }
+        // 생체 인증 기능 비활성화 - 항상 실패 반환
+        DispatchQueue.main.async {
+            completion(false)
         }
     }
     
@@ -318,8 +237,8 @@ class LoginManager: ObservableObject {
             print("Saved userName to UserDefaults: \(name)")
         }
         
-        // 자동 로그인 활성화
-        userDefaults.set(true, forKey: "autoLoginEnabled")
+        // 로그인 상태 저장 (자동 로그인 비활성화)
+        userDefaults.set(false, forKey: "autoLoginEnabled")
         userDefaults.set(true, forKey: "isLoggedIn")
         userDefaults.synchronize()
         
@@ -359,221 +278,258 @@ class LoginManager: ObservableObject {
         )
         
         print("Created UserInfo: \(userInfo)")
-        DispatchQueue.main.async { [weak self] in
-            self?.saveLoginState(userInfo: userInfo)
-        }
+        saveLoginState(userInfo: userInfo)
         
         // 웹뷰에 로그인 정보 전달
-        let loginInfo = [
-            "type": "loginInfoReceived",
-            "detail": [
+        NotificationCenter.default.post(
+            name: NSNotification.Name("LoginInfoReceived"),
+            object: nil,
+            userInfo: [
                 "isLoggedIn": true,
-                "userInfo": loginData
+                "userInfo": userInfo
             ]
-        ] as [String : Any]
-        
-        // JSON으로 변환하여 웹뷰에 전달
-        if let jsonData = try? JSONSerialization.data(withJSONObject: loginInfo),
-           let jsonString = String(data: jsonData, encoding: .utf8) {
-            
-            // ContentView에서 웹뷰 참조를 받아서 실행하도록 수정 필요
-            print("Login info ready to send to web: \(jsonString)")
-        }
-        
-        print("=== Login info saved successfully ===")
+        )
     }
     
-    // MARK: - 웹뷰에 로그인 정보 전달
-    func getLoginInfo() -> String {
-        guard let userInfo = userInfo else {
-            return """
-            {
-                "isLoggedIn": false,
-                "userInfo": null
+    // MARK: - 로그인 상태 확인
+    func checkLoginStatus(webView: WKWebView?) {
+        print("=== checkLoginStatus called ===")
+        
+        let isLoggedIn = userDefaults.bool(forKey: "isLoggedIn")
+        let userId = userDefaults.string(forKey: "userId")
+        let userEmail = userDefaults.string(forKey: "userEmail")
+        let userName = userDefaults.string(forKey: "userName")
+        let accessToken = userDefaults.string(forKey: "accessToken")
+        
+        print("Current login status:")
+        print("- isLoggedIn: \(isLoggedIn)")
+        print("- userId: \(userId ?? "nil")")
+        print("- userEmail: \(userEmail ?? "nil")")
+        print("- userName: \(userName ?? "nil")")
+        print("- accessToken: \(accessToken ?? "nil")")
+        
+        if isLoggedIn, let accessToken = accessToken {
+            let userInfo = UserInfo(
+                id: userId ?? "",
+                email: userEmail ?? "",
+                name: userName ?? "",
+                token: accessToken,
+                refreshToken: userDefaults.string(forKey: "refreshToken"),
+                expiresAt: userDefaults.object(forKey: "tokenExpiresAt") as? Date
+            )
+            
+            // UserInfo 업데이트를 메인 스레드에서 안전하게 처리
+            Task { @MainActor in
+                self.userInfo = userInfo
+                self.isLoggedIn = true
             }
+            
+            // 웹뷰에 로그인 정보 전달
+            if let webView = webView {
+                sendLoginInfoToWeb(webView: webView)
+            }
+        } else {
+            // 로그아웃 상태를 웹뷰에 전달
+            let logoutScript = """
+            (function() {
+                try {
+                    // 모든 로그인 관련 데이터 제거
+                    localStorage.removeItem('accessToken');
+                    localStorage.removeItem('userId');
+                    localStorage.removeItem('userEmail');
+                    localStorage.removeItem('userName');
+                    localStorage.removeItem('refreshToken');
+                    localStorage.removeItem('tokenExpiresAt');
+                    localStorage.removeItem('isLoggedIn');
+                    
+                    sessionStorage.removeItem('accessToken');
+                    sessionStorage.removeItem('userId');
+                    sessionStorage.removeItem('userEmail');
+                    sessionStorage.removeItem('userName');
+                    sessionStorage.removeItem('refreshToken');
+                    sessionStorage.removeItem('tokenExpiresAt');
+                    sessionStorage.removeItem('isLoggedIn');
+                    
+                    // 쿠키 제거
+                    document.cookie = 'accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                    document.cookie = 'userId=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                    document.cookie = 'userEmail=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                    document.cookie = 'isLoggedIn=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
+                    
+                    // 전역 변수 제거
+                    delete window.accessToken;
+                    delete window.userId;
+                    delete window.userEmail;
+                    delete window.userName;
+                    delete window.isLoggedIn;
+                    
+                    // 로그아웃 이벤트 발생
+                    window.dispatchEvent(new CustomEvent('logoutSuccess'));
+                    
+                    console.log('Logout completed - all login data removed');
+                    
+                } catch (error) {
+                    console.error('Error during logout:', error);
+                }
+            })();
             """
+            
+            webView?.evaluateJavaScript(logoutScript) { result, error in
+                if let error = error {
+                    print("웹뷰에 로그아웃 정보 전달 실패: \(error)")
+                } else {
+                    print("✅ 웹뷰에 로그아웃 정보 전달 완료")
+                }
+            }
+        }
+    }
+    
+    // MARK: - WebView 연동 (로그인 정보 전달)
+    func sendLoginInfoToWeb(webView: WKWebView) {
+        guard let userInfo = self.userInfo else {
+            print("No userInfo to send to web")
+            return
         }
         
-        return """
+        let accessToken = userInfo.token.replacingOccurrences(of: "'", with: "\\'")
+        let userId = userInfo.id.replacingOccurrences(of: "'", with: "\\'")
+        let userEmail = userInfo.email.replacingOccurrences(of: "'", with: "\\'")
+        let userName = userInfo.name.replacingOccurrences(of: "'", with: "\\'")
+        let refreshToken = (userInfo.refreshToken ?? "").replacingOccurrences(of: "'", with: "\\'")
+        let expiresAt = userInfo.expiresAt?.timeIntervalSince1970 ?? 0
+        
+        // 더 강력한 로그인 정보 전달 스크립트
+        let js = """
+        (function() {
+            try {
+                // localStorage에 저장
+                localStorage.setItem('accessToken', '\(accessToken)');
+                localStorage.setItem('userId', '\(userId)');
+                localStorage.setItem('userEmail', '\(userEmail)');
+                localStorage.setItem('userName', '\(userName)');
+                localStorage.setItem('refreshToken', '\(refreshToken)');
+                localStorage.setItem('tokenExpiresAt', '\(expiresAt)');
+                localStorage.setItem('isLoggedIn', 'true');
+                
+                // sessionStorage에도 저장 (세션 유지)
+                sessionStorage.setItem('accessToken', '\(accessToken)');
+                sessionStorage.setItem('userId', '\(userId)');
+                sessionStorage.setItem('userEmail', '\(userEmail)');
+                sessionStorage.setItem('userName', '\(userName)');
+                sessionStorage.setItem('refreshToken', '\(refreshToken)');
+                sessionStorage.setItem('tokenExpiresAt', '\(expiresAt)');
+                sessionStorage.setItem('isLoggedIn', 'true');
+                
+                // 쿠키에도 저장 (서버에서 인식)
+                document.cookie = 'accessToken=\(accessToken); path=/; max-age=86400';
+                document.cookie = 'userId=\(userId); path=/; max-age=86400';
+                document.cookie = 'userEmail=\(userEmail); path=/; max-age=86400';
+                document.cookie = 'isLoggedIn=true; path=/; max-age=86400';
+                
+                // 전역 변수로도 설정
+                window.accessToken = '\(accessToken)';
+                window.userId = '\(userId)';
+                window.userEmail = '\(userEmail)';
+                window.userName = '\(userName)';
+                window.isLoggedIn = true;
+                
+                // 로그인 이벤트 발생
+                window.dispatchEvent(new CustomEvent('loginSuccess', {
+                    detail: {
+                        isLoggedIn: true,
+                        userInfo: {
+                            id: '\(userId)',
+                            email: '\(userEmail)',
+                            name: '\(userName)',
+                            token: '\(accessToken)',
+                            refreshToken: '\(refreshToken)',
+                            expiresAt: '\(expiresAt)'
+                        }
+                    }
+                }));
+                
+                console.log('Login info saved to localStorage, sessionStorage, cookies, and global variables');
+                
+                // 페이지 새로고침 없이 로그인 상태 업데이트
+                if (window.location.pathname === '/login') {
+                    // 로그인 페이지에서 홈으로 리다이렉트
+                    window.location.href = '/';
+                }
+                
+            } catch (error) {
+                console.error('Error saving login info:', error);
+            }
+        })();
+        """
+        
+        webView.evaluateJavaScript(js) { result, error in
+            if let error = error {
+                print("Error sending login info to web: \(error)")
+            } else {
+                print("✅ Login info sent to web successfully")
+            }
+        }
+    }
+}
+
+// MARK: - Date Extension
+extension Date {
+    func ISO8601String() -> String {
+        let formatter = ISO8601DateFormatter()
+        return formatter.string(from: self)
+    }
+}
+
+
+
+// MARK: - WebView 연동 (카드 및 로그인 정보)
+extension LoginManager {
+    // 로그인 정보 JSON 반환 (웹뷰로 전달)
+    func getLoginInfo() -> String {
+        guard let userInfo = self.userInfo else {
+            return "{\"isLoggedIn\": false}"
+        }
+        let expiresAt = userInfo.expiresAt?.ISO8601String() ?? ""
+        let refreshToken = userInfo.refreshToken ?? ""
+        let json = """
         {
-            "isLoggedIn": \(isLoggedIn),
+            "isLoggedIn": true,
             "userInfo": {
                 "id": "\(userInfo.id)",
                 "email": "\(userInfo.email)",
                 "name": "\(userInfo.name)",
                 "token": "\(userInfo.token)",
-                "isTokenExpired": \(userInfo.isTokenExpired)
+                "refreshToken": "\(refreshToken)",
+                "expiresAt": "\(expiresAt)"
             }
         }
         """
+        return json
     }
-    
-    // MARK: - 웹뷰로 로그인 정보 전달
-    func sendLoginInfoToWeb(webView: WKWebView) {
-        guard let userInfo = userInfo else {
-            print("❌ sendLoginInfoToWeb: userInfo is nil")
-            return
-        }
-        
-        print("=== sendLoginInfoToWeb called ===")
-        print("UserInfo to send: \(userInfo)")
-        
-        // 웹뷰에 로그인 정보를 JavaScript로 전달
-        let script = """
-        (function() {
-            try {
-                console.log('Native app sending login info to web...');
-                
-                // localStorage에 로그인 정보 저장
-                localStorage.setItem('accessToken', '\(userInfo.token)');
-                localStorage.setItem('userId', '\(userInfo.id)');
-                localStorage.setItem('userEmail', '\(userInfo.email)');
-                localStorage.setItem('userName', '\(userInfo.name)');
-                
-                if ('\(userInfo.refreshToken ?? "")' !== '') {
-                    localStorage.setItem('refreshToken', '\(userInfo.refreshToken ?? "")');
-                }
-                
-                if ('\(userInfo.expiresAt?.timeIntervalSince1970 ?? 0)' !== '0') {
-                    localStorage.setItem('tokenExpiresAt', '\(userInfo.expiresAt?.timeIntervalSince1970 ?? 0)');
-                }
-                
-                // 쿠키에도 토큰 설정
-                document.cookie = 'accessToken=\(userInfo.token); path=/; secure; samesite=strict';
-                document.cookie = 'userId=\(userInfo.id); path=/; secure; samesite=strict';
-                
-                // 로그인 상태 이벤트 발생
-                window.dispatchEvent(new CustomEvent('nativeLoginSuccess', {
-                    detail: {
-                        userId: '\(userInfo.id)',
-                        userEmail: '\(userInfo.email)',
-                        userName: '\(userInfo.name)',
-                        accessToken: '\(userInfo.token)'
-                    }
-                }));
-                
-                // 추가 이벤트도 발생
-                window.dispatchEvent(new CustomEvent('loginInfoReceived', {
-                    detail: {
-                        isLoggedIn: true,
-                        userInfo: {
-                            id: '\(userInfo.id)',
-                            email: '\(userInfo.email)',
-                            name: '\(userInfo.name)',
-                            token: '\(userInfo.token)',
-                            refreshToken: '\(userInfo.refreshToken ?? "")'
-                        }
-                    }
-                }));
-                
-                console.log('✅ Native login info sent to web successfully');
-                console.log('localStorage accessToken:', localStorage.getItem('accessToken'));
-                console.log('localStorage userId:', localStorage.getItem('userId'));
-            } catch (error) {
-                console.error('❌ Error in native login script:', error);
-            }
-        })();
-        """
-        
-        print("Executing JavaScript script...")
-        webView.evaluateJavaScript(script) { result, error in
-            if let error = error {
-                print("❌ sendLoginInfoToWeb error: \(error)")
-            } else {
-                print("✅ sendLoginInfoToWeb success")
-                if let result = result {
-                    print("JavaScript result: \(result)")
-                }
-            }
-        }
-    }
-    
-    // MARK: - 앱 시작 시 로그인 상태 확인
-    func checkLoginStatus(webView: WKWebView) {
-        print("checkLoginStatus called")
-        
-        if isLoggedIn, let _ = userInfo {
-            print("User is logged in, sending info to web")
-            sendLoginInfoToWeb(webView: webView)
-        } else {
-            print("User is not logged in")
-            // 웹뷰에 로그아웃 상태 알림
-            let logoutScript = """
-            (function() {
-                // localStorage에서 로그인 정보 제거
-                localStorage.removeItem('accessToken');
-                localStorage.removeItem('userId');
-                localStorage.removeItem('userEmail');
-                localStorage.removeItem('userName');
-                localStorage.removeItem('refreshToken');
-                localStorage.removeItem('tokenExpiresAt');
-                
-                // 로그아웃 상태 이벤트 발생
-                window.dispatchEvent(new CustomEvent('nativeLogout'));
-                
-                console.log('Native logout state sent to web');
-            })();
-            """
-            
-            webView.evaluateJavaScript(logoutScript) { result, error in
-                if let error = error {
-                    print("checkLoginStatus logout error: \(error)")
-                }
-            }
-        }
-    }
-    
-    // MARK: - 카드 추가 관련 메서드
+
+    // 카드 추가 요청 처리 (예시: 1초 후 성공 콜백)
     func handleCardAddRequest(webView: WKWebView, completion: @escaping (Bool, String?) -> Void) {
-        print("handleCardAddRequest called")
-        
-        // 로그인 상태 확인
-        guard isLoggedIn, let _ = userInfo else {
-            print("User not logged in, cannot add card")
-            completion(false, "로그인이 필요합니다.")
-            return
-        }
-        
-        // 카드 추가 화면을 네이티브로 표시
-        DispatchQueue.main.async { [weak self] in
-            // 여기서 카드 추가 화면을 표시하는 로직을 구현
-            // 예: 카드 추가 모달 또는 새로운 화면으로 이동
-            self?.showCardAddScreen { success, errorMessage in
-                completion(success, errorMessage)
-            }
+        // 실제 카드 추가 로직 대신 1초 후 성공 처리
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.0) {
+            completion(true, nil) // 성공
         }
     }
-    
-    private func showCardAddScreen(completion: @escaping (Bool, String?) -> Void) {
-        // 실제 카드 추가 화면을 표시하기 위해 NotificationCenter 사용
-        // ContentView에서 이 알림을 받아서 CardAddView를 표시
-        NotificationCenter.default.post(
-            name: NSNotification.Name("ShowCardAddView"),
-            object: nil,
-            userInfo: ["completion": completion]
-        )
-    }
-    
-    // MARK: - 카드 추가 완료 후 웹뷰에 알림
+
+    // 카드 추가 완료 알림 (웹뷰로 JS 이벤트 전달)
     func notifyCardAddComplete(webView: WKWebView, success: Bool, errorMessage: String? = nil) {
-        let script = """
-        (function() {
-            window.dispatchEvent(new CustomEvent('cardAddComplete', {
-                detail: {
-                    success: \(success),
-                    errorMessage: '\(errorMessage ?? "")'
-                }
-            }));
-            
-            console.log('Card add complete notification sent to web');
-        })();
-        """
-        
+        let detail: String
+        if success {
+            detail = "{success: true}"
+        } else {
+            let error = errorMessage?.replacingOccurrences(of: "'", with: " ") ?? "Unknown error"
+            detail = "{success: false, errorMessage: '\(error)'}"
+        }
+        let script = "window.dispatchEvent(new CustomEvent('cardAddComplete', { detail: \(detail) }));"
         webView.evaluateJavaScript(script) { result, error in
             if let error = error {
-                print("notifyCardAddComplete error: \(error)")
+                print("Error notifying card add complete: \(error)")
             } else {
-                print("notifyCardAddComplete success")
+                print("Card add complete notified to webView")
             }
         }
     }

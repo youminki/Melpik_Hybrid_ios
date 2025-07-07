@@ -12,17 +12,36 @@ import Network
 class NetworkMonitor: ObservableObject {
     private let monitor = NWPathMonitor()
     @Published var isConnected = false
+    private var isMonitoring = false
     
-    func startMonitoring() {
-        monitor.pathUpdateHandler = { path in
-            DispatchQueue.main.async {
-                self.isConnected = path.status == .satisfied
-            }
-        }
-        monitor.start(queue: DispatchQueue.global())
+    init() {
+        startMonitoring()
     }
     
     deinit {
+        print("NetworkMonitor deinit")
         monitor.cancel()
+    }
+    
+    func startMonitoring() {
+        guard !isMonitoring else { return }
+        isMonitoring = true
+        
+        monitor.pathUpdateHandler = { [weak self] path in
+            Task { @MainActor in
+                self?.isConnected = path.status == .satisfied
+                print("Network status changed: \(path.status)")
+            }
+        }
+        
+        monitor.start(queue: DispatchQueue.global())
+        print("Network monitoring started")
+    }
+    
+    func stopMonitoring() {
+        guard isMonitoring else { return }
+        isMonitoring = false
+        monitor.cancel()
+        print("Network monitoring stopped")
     }
 } 

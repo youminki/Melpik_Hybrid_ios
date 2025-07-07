@@ -26,9 +26,32 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         // 푸시 알림 델리게이트 설정
         UNUserNotificationCenter.current().delegate = self
         
+        // 푸시 알림 권한 요청
+        requestNotificationPermission()
+        
+        // 원격 알림 등록
+        application.registerForRemoteNotifications()
+        
         // 상태바 스타일 설정은 SwiftUI에서 처리
         
         return true
+    }
+    
+    // MARK: - 푸시 알림 권한 요청
+    private func requestNotificationPermission() {
+        UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
+            DispatchQueue.main.async {
+                if granted {
+                    print("푸시 알림 권한이 허용되었습니다.")
+                } else {
+                    print("푸시 알림 권한이 거부되었습니다.")
+                }
+                
+                if let error = error {
+                    print("푸시 알림 권한 요청 중 오류: \(error)")
+                }
+            }
+        }
     }
     
     // MARK: - 푸시 알림 토큰 등록
@@ -37,12 +60,49 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
         let token = tokenParts.joined()
         print("Device Token: \(token)")
         
-        // 토큰을 서버에 전송하는 로직을 여기에 구현
-        // sendTokenToServer(token: token)
+        // 토큰을 서버에 전송
+        sendTokenToServer(token: token)
     }
     
     func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
         print("Failed to register for remote notifications: \(error)")
+    }
+    
+    // MARK: - 서버에 토큰 전송
+    private func sendTokenToServer(token: String) {
+        // 서버 URL 설정 (실제 서버 URL로 변경 필요)
+        guard let url = URL(string: "https://your-server.com/api/push-token") else {
+            print("잘못된 서버 URL")
+            return
+        }
+        
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        
+        let body = [
+            "deviceToken": token,
+            "platform": "iOS",
+            "appVersion": Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        ]
+        
+        do {
+            request.httpBody = try JSONSerialization.data(withJSONObject: body)
+        } catch {
+            print("토큰 데이터 직렬화 오류: \(error)")
+            return
+        }
+        
+        URLSession.shared.dataTask(with: request) { data, response, error in
+            if let error = error {
+                print("토큰 전송 오류: \(error)")
+                return
+            }
+            
+            if let httpResponse = response as? HTTPURLResponse {
+                print("토큰 전송 응답: \(httpResponse.statusCode)")
+            }
+        }.resume()
     }
     
     // MARK: - UNUserNotificationCenterDelegate

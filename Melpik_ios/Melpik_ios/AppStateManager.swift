@@ -20,33 +20,38 @@ class AppStateManager: ObservableObject {
     let userDefaults = UserDefaults.standard
     let loginManager = LoginManager()
     
+    deinit {
+        print("AppStateManager deinit")
+    }
+    
     func requestPushNotificationPermission() {
         UNUserNotificationCenter.current().requestAuthorization(options: [.alert, .badge, .sound]) { granted, error in
             DispatchQueue.main.async {
                 if granted {
                     UIApplication.shared.registerForRemoteNotifications()
+                    print("Push notification permission granted")
+                } else {
+                    print("Push notification permission denied")
+                }
+                
+                if let error = error {
+                    print("Push notification permission error: \(error)")
                 }
             }
         }
     }
     
     func setupBiometricAuth() {
-        let context = LAContext()
-        var error: NSError?
-        
-        if context.canEvaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, error: &error) {
-            isBiometricAvailable = true
-        }
+        // 생체 인증 비활성화
+        isBiometricAvailable = false
+        print("Biometric authentication disabled")
     }
     
     func authenticateWithBiometrics(completion: @escaping (Bool) -> Void) {
-        let context = LAContext()
-        let reason = "생체 인증을 통해 로그인합니다"
-        
-        context.evaluatePolicy(.deviceOwnerAuthenticationWithBiometrics, localizedReason: reason) { success, error in
-            DispatchQueue.main.async {
-                completion(success)
-            }
+        // 생체 인증 비활성화 - 항상 실패 반환
+        DispatchQueue.main.async {
+            print("Biometric authentication disabled - always returns false")
+            completion(false)
         }
     }
     
@@ -82,7 +87,6 @@ class AppStateManager: ObservableObject {
         print("expiresAt:", expiresAt ?? "nil")
         print("accessToken:", accessToken)
         print("refreshToken:", refreshToken)
-        // ... 이하 생략 ...
     }
     
     func loadFromKeychain(key: String) -> String? {
@@ -108,7 +112,6 @@ class AppStateManager: ObservableObject {
         print("[saveLoginState] userId: \(userInfo.id)")
         print("[saveLoginState] accessToken: \(userInfo.token)")
         print("[saveLoginState] isTokenExpired: \(userInfo.isTokenExpired)")
-        // ... 이하 생략 ...
     }
 }
 
@@ -118,12 +121,18 @@ class WebViewCoordinator: NSObject, WKScriptMessageHandler {
 
     init(loginManager: LoginManager) {
         self.loginManager = loginManager
+        super.init()
+    }
+    
+    deinit {
+        print("WebViewCoordinator deinit")
     }
 
     func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
         print("WKScriptMessageHandler didReceive: \(message.body)")
         guard let body = message.body as? [String: Any],
               let action = body["action"] as? String else { return }
+        
         if action == "saveLoginInfo" {
             if let loginData = body["loginData"] as? [String: Any] {
                 loginManager.saveLoginInfo(loginData)

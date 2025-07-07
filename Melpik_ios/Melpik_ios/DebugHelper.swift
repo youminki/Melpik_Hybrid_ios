@@ -7,6 +7,7 @@
 
 import Foundation
 import WebKit
+import SwiftUI
 
 @MainActor
 class DebugHelper {
@@ -89,8 +90,10 @@ class DebugHelper {
         loginManager.userInfo = testUserInfo
         loginManager.isLoggedIn = true
         
-        // 웹뷰로 전송
-        loginManager.sendLoginInfoToWeb(webView: webView)
+        // 웹뷰로 전송 (메인 스레드에서 실행)
+        Task { @MainActor in
+            loginManager.sendLoginInfoToWeb(webView: webView)
+        }
         
         print("✅ Test login info sent to web")
     }
@@ -180,5 +183,66 @@ class DebugHelper {
         DispatchQueue.main.asyncAfter(deadline: .now() + 3.0) {
             self.checkNativeBridge(webView: webView)
         }
+    }
+}
+
+struct LoadingView: View {
+    @State private var logoScale: CGFloat = 0.95
+    @State private var sloganOpacity: Double = 0.0
+
+    var body: some View {
+        VStack {
+            Spacer().frame(height: UIScreen.main.bounds.height * 0.15)
+            // TopSection
+            VStack(spacing: 21) {
+                // Logo
+                Image("LoginLogo")
+                    .resizable()
+                    .frame(width: 184, height: 83)
+                    .scaleEffect(logoScale)
+                    .animation(
+                        Animation.easeInOut(duration: 1.2)
+                            .repeatForever(autoreverses: true),
+                        value: logoScale
+                    )
+                    .onAppear {
+                        logoScale = 1.05
+                        withAnimation(.easeIn(duration: 1.0)) {
+                            sloganOpacity = 1.0
+                        }
+                    }
+
+                // Slogan
+                VStack(spacing: 0) {
+                    Text("이젠 ")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.black)
+                    + Text("멜픽")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(Color(red: 246/255, green: 174/255, blue: 36/255))
+                    + Text("을 통해")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.black)
+                    Text("브랜드를 골라보세요")
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundColor(.black)
+                        .padding(.top, -2)
+                    Text("사고, 팔고, 빌리는 것을 한번에!")
+                        .font(.system(size: 12, weight: .regular))
+                        .foregroundColor(Color(white: 0.67))
+                        .padding(.top, 8)
+                }
+                .frame(width: 158)
+                .multilineTextAlignment(.center)
+                .opacity(sloganOpacity)
+                .animation(.easeIn(duration: 1.0), value: sloganOpacity)
+            }
+            Spacer()
+            ProgressView()
+                .progressViewStyle(CircularProgressViewStyle(tint: Color(red: 246/255, green: 174/255, blue: 36/255)))
+                .scaleEffect(1.2)
+                .padding(.bottom, 40)
+        }
+        .background(Color.white.ignoresSafeArea())
     }
 } 
