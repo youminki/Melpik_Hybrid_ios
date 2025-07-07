@@ -117,7 +117,7 @@ class LoginManager: ObservableObject {
         userDefaults.removeObject(forKey: "userEmail")
         userDefaults.removeObject(forKey: "userName")
         userDefaults.removeObject(forKey: "tokenExpiresAt")
-        userDefaults.removeObject(forKey: "autoLoginEnabled")
+        // 자동 로그인 관련 설정 제거됨
         
         // Keychain에서 토큰 제거
         deleteFromKeychain(key: "accessToken")
@@ -187,13 +187,8 @@ class LoginManager: ObservableObject {
         SecItemDelete(query as CFDictionary)
     }
     
-    // MARK: - 생체 인증을 통한 로그인 (비활성화)
-    func authenticateWithBiometrics(completion: @escaping (Bool) -> Void) {
-        // 생체 인증 기능 비활성화 - 항상 실패 반환
-        DispatchQueue.main.async {
-            completion(false)
-        }
-    }
+    // MARK: - 생체 인증을 통한 로그인 (제거됨)
+    // 생체 인증 기능이 완전히 제거되었습니다.
     
     // MARK: - 웹에서 받은 로그인 데이터 처리
     func saveLoginInfo(_ loginData: [String: Any]) {
@@ -228,8 +223,7 @@ class LoginManager: ObservableObject {
             print("Saved userName to UserDefaults: \(name)")
         }
         
-        // 로그인 상태 저장 (자동 로그인 비활성화)
-        userDefaults.set(false, forKey: "autoLoginEnabled")
+        // 로그인 상태 저장
         userDefaults.set(true, forKey: "isLoggedIn")
         userDefaults.synchronize()
         
