@@ -51,8 +51,7 @@ class LoginManager: ObservableObject {
             userDefaults.set(expiresAt, forKey: "tokenExpiresAt")
         }
         
-        // 자동 로그인 설정 저장
-        userDefaults.set(true, forKey: "autoLoginEnabled")
+        // 자동 로그인 설정 제거됨
         userDefaults.synchronize()
         
         // @Published 프로퍼티 업데이트를 메인 스레드에서 안전하게 처리
@@ -133,16 +132,8 @@ class LoginManager: ObservableObject {
         print("✅ Logout completed")
     }
     
-    // MARK: - 자동 로그인 설정 (비활성화)
-    func setAutoLogin(enabled: Bool) {
-        // 자동 로그인 기능 비활성화
-        userDefaults.set(false, forKey: "autoLoginEnabled")
-    }
-    
-    func isAutoLoginEnabled() -> Bool {
-        // 항상 false 반환 (자동 로그인 비활성화)
-        return false
-    }
+    // MARK: - 자동 로그인 설정 (제거됨)
+    // 자동 로그인 기능이 완전히 제거되었습니다.
     
     // MARK: - Keychain 관리
     private func saveToKeychain(key: String, value: String) {
