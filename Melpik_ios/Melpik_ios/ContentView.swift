@@ -23,6 +23,44 @@ struct ContentView: View {
     }
 }
 
+// MARK: - Error View
+struct ErrorView: View {
+    let error: String
+    let retryAction: () -> Void
+    
+    var body: some View {
+        VStack(spacing: 20) {
+            Image(systemName: "exclamationmark.triangle")
+                .font(.system(size: 50))
+                .foregroundColor(.orange)
+            
+            Text("연결 오류")
+                .font(.custom("NanumSquareB", size: 20))
+                .foregroundColor(.primary)
+            
+            Text(error)
+                .font(.custom("NanumSquareR", size: 16))
+                .foregroundColor(.secondary)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 20)
+            
+            Button(action: retryAction) {
+                Text("다시 시도")
+                    .font(.custom("NanumSquareB", size: 16))
+                    .foregroundColor(.white)
+                    .padding(.horizontal, 30)
+                    .padding(.vertical, 12)
+                    .background(Color(hex: "#F6AE24"))
+                    .cornerRadius(8)
+            }
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .background(Color.white)
+    }
+}
+
+
+
 struct TypingLoadingView: View {
     let slogan1 = "이젠 "
     let slogan2 = "멜픽"
@@ -154,32 +192,7 @@ struct TypingLoadingView: View {
     }
 }
 
-// HEX 컬러 지원 익스텐션
-extension Color {
-    init(hex: String) {
-        let hex = hex.trimmingCharacters(in: CharacterSet.alphanumerics.inverted)
-        var int: UInt64 = 0
-        Scanner(string: hex).scanHexInt64(&int)
-        let a, r, g, b: UInt64
-        switch hex.count {
-        case 3: // RGB (12-bit)
-            (a, r, g, b) = (255, (int >> 8) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)
-        case 6: // RGB (24-bit)
-            (a, r, g, b) = (255, int >> 16, int >> 8 & 0xFF, int & 0xFF)
-        case 8: // ARGB (32-bit)
-            (a, r, g, b) = (int >> 24, int >> 16 & 0xFF, int >> 8 & 0xFF, int & 0xFF)
-        default:
-            (a, r, g, b) = (255, 0, 0, 0)
-        }
-        self.init(
-            .sRGB,
-            red: Double(r) / 255,
-            green: Double(g) / 255,
-            blue:  Double(b) / 255,
-            opacity: Double(a) / 255
-        )
-    }
-}
+
 
 struct MainWebViewContainer: View {
     var body: some View {
@@ -202,6 +215,8 @@ struct WebView: UIViewRepresentable {
     let onCamera: () -> Void
     let onShare: (URL) -> Void
     let onSafari: (URL) -> Void
+    let onError: (String) -> Void
+    let onOffline: () -> Void
     
     func makeUIView(context: Context) -> WKWebView {
         // 웹뷰 설정
@@ -604,10 +619,31 @@ struct WebView: UIViewRepresentable {
         
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
             parent.isLoading = false
+            handleNavigationError(error)
         }
         
         func webView(_ webView: WKWebView, didFailProvisionalNavigation navigation: WKNavigation!, withError error: Error) {
             parent.isLoading = false
+            handleNavigationError(error)
+        }
+        
+        private func handleNavigationError(_ error: Error) {
+            let nsError = error as NSError
+            
+            // Check if it's a network error
+            if nsError.domain == NSURLErrorDomain {
+                switch nsError.code {
+                case NSURLErrorNotConnectedToInternet,
+                     NSURLErrorNetworkConnectionLost,
+                     NSURLErrorCannotConnectToHost:
+                    // 오프라인 상태로 처리
+                    parent.onOffline()
+                default:
+                    parent.onError("네트워크 연결에 실패했습니다. 다시 시도해주세요.")
+                }
+            } else {
+                parent.onError("페이지를 불러오는데 실패했습니다. 다시 시도해주세요.")
+            }
         }
         
         // MARK: - WKScriptMessageHandler
@@ -663,9 +699,16 @@ struct WebView: UIViewRepresentable {
                 parent.webView.evaluateJavaScript(script)
                 
             case "getAppInfo":
-                let appInfo = parent.appState.getAppInfo()
-                let script = "window.dispatchEvent(new CustomEvent('appInfoReceived', { detail: \(appInfo) }));"
-                parent.webView.evaluateJavaScript(script)
+                let appInfo: [String: Any] = [
+                    "version": parent.appState.appVersion,
+                    "buildNumber": parent.appState.buildNumber,
+                    "launchCount": parent.appState.appLaunchCount
+                ]
+                if let jsonData = try? JSONSerialization.data(withJSONObject: appInfo),
+                   let jsonString = String(data: jsonData, encoding: .utf8) {
+                    let script = "window.dispatchEvent(new CustomEvent('appInfoReceived', { detail: \(jsonString) }));"
+                    parent.webView.evaluateJavaScript(script)
+                }
                 
             case "saveLoginInfo":
                 if let loginData = body["loginData"] as? [String: Any] {
@@ -844,6 +887,9 @@ struct ContentViewMain: View {
     @StateObject private var locationManager = LocationManager()
     @StateObject private var networkMonitor = NetworkMonitor()
     @StateObject private var loginManager = LoginManager()
+    @StateObject private var privacyManager = PrivacyManager()
+    @StateObject private var cacheManager = CacheManager.shared
+    @StateObject private var performanceMonitor = PerformanceMonitor.shared
     
     @State private var isLoading = true
     @State private var canGoBack = false
@@ -857,35 +903,61 @@ struct ContentViewMain: View {
     @State private var showingAlert = false
     @State private var showingCardAddView = false
     @State private var cardAddCompletion: ((Bool, String?) -> Void)?
+    
+    // Error handling states
+    @State private var hasError = false
+    @State private var errorMessage = ""
+    @State private var isOffline = false
+    @State private var retryCount = 0
+    
+    // Performance monitoring states
 
+    
     var body: some View {
         ZStack {
             // 전체 배경색 설정
             Color(.systemBackground)
                 .ignoresSafeArea(.all, edges: .all)
             
-            // 웹뷰 (상단 헤더 제거, 하단 safe area 무시)
-            WebView(
-                webView: webViewStore.webView,
-                isLoading: $isLoading,
-                canGoBack: $canGoBack,
-                canGoForward: $canGoForward,
-                appState: appState,
-                locationManager: locationManager,
-                networkMonitor: networkMonitor,
-                loginManager: loginManager,
-                onImagePicker: { showingImagePicker = true },
-                onCamera: { showingCamera = true },
-                onShare: { url in
-                    shareURL = url
-                    showingShareSheet = true
-                },
-                onSafari: { url in
-                    shareURL = url
-                    showingSafari = true
+            // Error or Offline View
+            if hasError {
+                ErrorView(error: errorMessage) {
+                    retryLoading()
                 }
-            )
-            .ignoresSafeArea(.all, edges: .bottom)
+            } else if isOffline {
+                OfflineView {
+                    retryLoading()
+                }
+            } else {
+                // 웹뷰 (상단 헤더 제거, 하단 safe area 무시)
+                WebView(
+                    webView: webViewStore.webView,
+                    isLoading: $isLoading,
+                    canGoBack: $canGoBack,
+                    canGoForward: $canGoForward,
+                    appState: appState,
+                    locationManager: locationManager,
+                    networkMonitor: networkMonitor,
+                    loginManager: loginManager,
+                    onImagePicker: { showingImagePicker = true },
+                    onCamera: { showingCamera = true },
+                    onShare: { url in
+                        shareURL = url
+                        showingShareSheet = true
+                    },
+                    onSafari: { url in
+                        shareURL = url
+                        showingSafari = true
+                    },
+                    onError: { error in
+                        handleError(error)
+                    },
+                    onOffline: {
+                        handleOffline()
+                    }
+                )
+                .ignoresSafeArea(.all, edges: .bottom)
+            }
         }
         .statusBarHidden(false)
         .navigationBarHidden(true)
@@ -938,23 +1010,30 @@ struct ContentViewMain: View {
                 }
             }
         }
+
+        .onReceive(networkMonitor.$isConnected) { isConnected in
+            if !isConnected && !isLoading {
+                handleOffline()
+            } else if isConnected && isOffline {
+                retryLoading()
+            }
+        }
+
+
         .alert("제목", isPresented: $showingAlert) {
             Button("확인", role: .cancel) { }
         } message: {
             Text("메시지")
         }
-        .onReceive(appState.$pushToken) { token in
-            if let token = token {
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("PushTokenReceived"))) { notification in
+            if let token = notification.userInfo?["token"] as? String {
                 sendPushTokenToWeb(token: token)
             }
         }
-        .onReceive(loginManager.$isLoggedIn) { isLoggedIn in
-            print("isLoggedIn changed: \(isLoggedIn)")
-            if isLoggedIn {
-                sendLoginInfoToWeb()
-            }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("LoginInfoReceived"))) { _ in
+            sendLoginInfoToWeb()
         }
-        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TokenRefreshed"))) { notification in
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("TokenRefreshReceived"))) { notification in
             if let tokenData = notification.userInfo?["tokenData"] as? [String: Any] {
                 sendTokenRefreshToWeb(tokenData: tokenData)
             }
@@ -975,15 +1054,39 @@ struct ContentViewMain: View {
     }
     
     private func setupApp() {
-        // 푸시 알림 권한 요청
-        appState.requestPushNotificationPermission()
-        // 위치 서비스 권한 요청
-        locationManager.requestLocationPermission()
+        // 개인정보 처리방침은 me1pik.com에서 처리하므로 앱에서는 확인하지 않음
+        
+        
+        // 성능 모니터링 시작
+        performanceMonitor.startMonitoring()
+        
+        // 캐시 상태 확인
+        let cacheHealth = cacheManager.performCacheHealthCheck()
+        if !cacheHealth.isHealthy {
+            print("Cache health issues detected: \(cacheHealth.issues)")
+        }
+        
+        // 푸시 알림 권한 요청 (개인정보 동의 후)
+        if privacyManager.canSendPushNotifications() {
+            appState.requestPushNotificationPermission()
+        }
+        
+        // 위치 서비스 권한 요청 (개인정보 동의 후)
+        if privacyManager.canUseLocationServices() {
+            locationManager.requestLocationPermission()
+        }
+        
         // 생체 인증 설정
         appState.setupBiometricAuth()
+        
         // 네트워크 모니터링 시작
         networkMonitor.startMonitoring()
+        
+        // 앱 성능 분석 시작
+        appState.startPerformanceMonitoring()
     }
+    
+
     
     private func sendPushTokenToWeb(token: String) {
         let script = "window.dispatchEvent(new CustomEvent('pushTokenReceived', { detail: '\(token)' }));"
@@ -1052,6 +1155,50 @@ struct ContentViewMain: View {
             } else {
                 print("✅ Keep login setting sent to web successfully")
             }
+        }
+    }
+    
+    // MARK: - Error Handling Methods
+    private func handleError(_ error: String) {
+        DispatchQueue.main.async {
+            self.hasError = true
+            self.errorMessage = error
+            self.isOffline = false
+            
+            // 에러 추적
+            self.appState.trackError(NSError(domain: "WebView", code: -1, userInfo: [NSLocalizedDescriptionKey: error]), context: "WebView")
+        }
+    }
+    
+    private func handleOffline() {
+        DispatchQueue.main.async {
+            self.isOffline = true
+            self.hasError = false
+            
+            // 오프라인 상태 추적
+            self.appState.trackUserAction("app_offline", properties: [
+                "connection_type": self.networkMonitor.connectionType.rawValue,
+                "connection_quality": self.networkMonitor.connectionQuality.rawValue
+            ])
+        }
+    }
+    
+    private func retryLoading() {
+        DispatchQueue.main.async {
+            self.hasError = false
+            self.isOffline = false
+            self.retryCount += 1
+            
+            // 재시도 추적
+            self.appState.trackUserAction("app_retry", properties: [
+                "retry_count": self.retryCount,
+                "connection_type": self.networkMonitor.connectionType.rawValue
+            ])
+            
+            // Reset webview and reload
+            guard let url = URL(string: Constants.initialURL) else { return }
+            let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
+            self.webViewStore.webView.load(request)
         }
     }
 } 
