@@ -57,10 +57,23 @@ class DemoModeManager: ObservableObject {
     
     // MARK: - Demo Login
     func attemptDemoLogin(username: String, password: String) -> Bool {
+        print("Demo 로그인 시도: username=\(username), password=\(password)")
         if username == demoCredentials.username && password == demoCredentials.password {
             isDemoLoggedIn = true
             demoLoginError = ""
             showingDemoLogin = false
+            // 데모 계정 정보 UserDefaults/Keychain에 저장
+            let demoUser = getDemoUserData()
+            let userInfo = UserInfo(
+                id: demoUser.id,
+                email: demoUser.email,
+                name: demoUser.name,
+                token: "demo_access_token_12345",
+                refreshToken: "demo_refresh_token_67890",
+                expiresAt: Date().addingTimeInterval(60*60*24*30) // 30일 후 만료
+            )
+            print("Demo 로그인: saveLoginState 호출")
+            LoginManager.shared.saveLoginState(userInfo: userInfo)
             return true
         } else {
             demoLoginError = "잘못된 사용자명 또는 비밀번호입니다."
@@ -276,6 +289,7 @@ struct DemoLoginView: View {
                 // Action Buttons
                 VStack(spacing: 16) {
                     Button("데모 로그인") {
+                        print("Demo 로그인 버튼 클릭됨: username=\(username), password=\(password)")
                         _ = demoManager.attemptDemoLogin(username: username, password: password)
                     }
                     .font(.custom("NanumSquareB", size: 16))

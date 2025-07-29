@@ -21,6 +21,9 @@ struct Melpik_iosApp: App {
 
 // MARK: - AppDelegate
 class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDelegate {
+    // LoginManager를 전역 프로퍼티로 추가
+    let loginManager = LoginManager()
+    
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
         
         // 푸시 알림 델리게이트 설정
@@ -70,8 +73,8 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     
     // MARK: - 서버에 토큰 전송
     private func sendTokenToServer(token: String) {
-        // 서버 URL 설정 (실제 서버 URL로 변경 필요)
-        guard let url = URL(string: "https://your-server.com/api/push-token") else {
+        // 서버 URL 설정 (실제 서버 URL로 변경)
+        guard let url = URL(string: "https://api.stylewh.com/api/push-token") else {
             print("잘못된 서버 URL")
             return
         }

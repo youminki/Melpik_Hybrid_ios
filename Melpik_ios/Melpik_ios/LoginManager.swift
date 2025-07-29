@@ -13,6 +13,7 @@ import Foundation
 
 @MainActor
 class LoginManager: ObservableObject {
+    static let shared = LoginManager()
     @Published var isLoggedIn = false
     @Published var isLoading = true
     @Published var userInfo: UserInfo?
@@ -147,6 +148,7 @@ class LoginManager: ObservableObject {
     @MainActor
     func saveLoginState(userInfo: UserInfo) {
         guard !isInitializing else { return }
+        print("[saveLoginState] 호출됨 - userId: \(userInfo.id), accessToken: \(userInfo.token), refreshToken: \(userInfo.refreshToken ?? "nil")")
         
         print("saveLoginState called, userInfo: \(userInfo)")
         
@@ -155,10 +157,10 @@ class LoginManager: ObservableObject {
         userDefaults.set(userInfo.id, forKey: "userId")
         userDefaults.set(userInfo.email, forKey: "userEmail")
         userDefaults.set(userInfo.name, forKey: "userName")
-        
-        // Keychain에 민감한 정보 저장
+        userDefaults.set(userInfo.token, forKey: "accessToken")
         saveToKeychain(key: "accessToken", value: userInfo.token)
         if let refreshToken = userInfo.refreshToken {
+            userDefaults.set(refreshToken, forKey: "refreshToken")
             saveToKeychain(key: "refreshToken", value: refreshToken)
         }
         if let expiresAt = userInfo.expiresAt {
@@ -197,10 +199,59 @@ class LoginManager: ObservableObject {
             self.isLoading = true
         }
         
-        // 자동 로그인 비활성화 - 항상 로그아웃 상태로 시작
-        print("=== Auto login disabled - starting with logout state ===")
-        logout()
-        
+        // 1. 저장된 토큰 불러오기 (UserDefaults → Keychain 우선 순위)
+        var accessToken = userDefaults.string(forKey: "accessToken")
+        var refreshToken = userDefaults.string(forKey: "refreshToken")
+        let expiresAt = userDefaults.object(forKey: "tokenExpiresAt") as? Date
+
+        // UserDefaults에 없으면 Keychain에서 복원
+        if accessToken == nil {
+            accessToken = loadFromKeychain(key: "accessToken")
+            if let token = accessToken {
+                userDefaults.set(token, forKey: "accessToken")
+            }
+        }
+        if refreshToken == nil {
+            refreshToken = loadFromKeychain(key: "refreshToken")
+            if let token = refreshToken {
+                userDefaults.set(token, forKey: "refreshToken")
+            }
+        }
+
+        // UserDefaults가 비어있으면 Keychain 값으로 동기화
+        if userDefaults.string(forKey: "userId") == nil, let token = accessToken {
+            userDefaults.set(true, forKey: "isLoggedIn")
+            // 기타 정보도 Keychain에서 복원 가능하다면 복원 (여기선 id/email/name은 Keychain에 없으므로 생략)
+            print("UserDefaults가 비어있어 Keychain 값으로 동기화")
+        }
+        // 2. accessToken 또는 refreshToken이 하나라도 있으면 로그아웃 호출 금지
+        if let token = accessToken, !token.isEmpty {
+            print("✅ accessToken 존재, 자동 로그인 상태로 시작")
+            // UserDefaults에 사용자 정보가 없으면 기본값으로라도 UserInfo 생성
+            let userId = userDefaults.string(forKey: "userId") ?? "unknown"
+            let userEmail = userDefaults.string(forKey: "userEmail") ?? ""
+            let userName = userDefaults.string(forKey: "userName") ?? ""
+            let exp = expiresAt
+            let userInfo = UserInfo(
+                id: userId,
+                email: userEmail,
+                name: userName,
+                token: token,
+                refreshToken: refreshToken,
+                expiresAt: exp
+            )
+            self.userInfo = userInfo
+            self.isLoggedIn = true
+            setupTokenRefreshTimer()
+        } else if let refresh = refreshToken, !refresh.isEmpty {
+            print("✅ refreshToken 존재, accessToken 갱신 시도")
+            refreshAccessToken()
+        } else {
+            // accessToken, refreshToken 모두 없을 때만 로그아웃
+            print("❌ 토큰 없음, 로그아웃 상태로 시작")
+            logout()
+        }
+
         Task { @MainActor in
             self.isLoading = false
         }
@@ -226,6 +277,7 @@ class LoginManager: ObservableObject {
     
     // MARK: - 로그아웃
     func logout() {
+        print("[logout] 호출됨 - userId: \(userInfo?.id ?? "nil"), accessToken: \(loadFromKeychain(key: "accessToken") ?? "nil"), refreshToken: \(loadFromKeychain(key: "refreshToken") ?? "nil")")
         print("=== logout called ===")
         
         // 토큰 갱신 타이머 중지
@@ -312,15 +364,19 @@ class LoginManager: ObservableObject {
         if keepLogin {
             // 로그인 상태 유지: UserDefaults에 저장 (영구 보관)
             userDefaults.set(accessToken, forKey: "accessToken")
+            saveToKeychain(key: "accessToken", value: accessToken)
             if let refreshToken = refreshToken {
                 userDefaults.set(refreshToken, forKey: "refreshToken")
+                saveToKeychain(key: "refreshToken", value: refreshToken)
             }
             print("UserDefaults에 토큰 저장됨 (로그인 상태 유지)")
         } else {
             // 세션 유지: UserDefaults에 저장하되 앱 종료 시 삭제될 수 있음
             userDefaults.set(accessToken, forKey: "accessToken")
+            saveToKeychain(key: "accessToken", value: accessToken)
             if let refreshToken = refreshToken {
                 userDefaults.set(refreshToken, forKey: "refreshToken")
+                saveToKeychain(key: "refreshToken", value: refreshToken)
             }
             print("UserDefaults에 토큰 저장됨 (세션 유지)")
         }
@@ -436,13 +492,15 @@ class LoginManager: ObservableObject {
     
     // MARK: - Keychain 관리
     private func saveToKeychain(key: String, value: String) {
-        let data = value.data(using: .utf8)!
+        print("[saveToKeychain] key: \(key), value: \(value)")
+        guard let data = value.data(using: .utf8) else { return }
         
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: keychainService,
             kSecAttrAccount as String: key,
-            kSecValueData as String: data
+            kSecValueData as String: data,
+            kSecAttrAccessible as String: kSecAttrAccessibleAfterFirstUnlock // 영구 저장
         ]
         
         // 기존 항목 삭제
@@ -450,8 +508,10 @@ class LoginManager: ObservableObject {
         
         // 새 항목 추가
         let status = SecItemAdd(query as CFDictionary, nil)
-        if status != errSecSuccess {
-            print("Keychain save error: \(status)")
+        if status == errSecSuccess {
+            print("Keychain 저장 성공: \(key)")
+        } else {
+            print("Keychain 저장 실패: \(key), status: \(status)")
         }
     }
     
@@ -470,13 +530,16 @@ class LoginManager: ObservableObject {
         if status == errSecSuccess,
            let data = result as? Data,
            let string = String(data: data, encoding: .utf8) {
+            print("Keychain 복원 성공: \(key), value: \(string)")
             return string
+        } else {
+            print("Keychain 복원 실패: \(key), status: \(status)")
+            return nil
         }
-        
-        return nil
     }
     
     private func deleteFromKeychain(key: String) {
+        print("[deleteFromKeychain] key: \(key)")
         let query: [String: Any] = [
             kSecClass as String: kSecClassGenericPassword,
             kSecAttrService as String: keychainService,
@@ -507,6 +570,7 @@ class LoginManager: ObservableObject {
         // UserDefaults를 사용하여 토큰 저장
         if let token = loginData["token"] as? String {
             userDefaults.set(token, forKey: "accessToken")
+            saveToKeychain(key: "accessToken", value: token)
             print("Saved accessToken to UserDefaults: \(token)")
         } else {
             print("❌ No token found in login data")
@@ -514,6 +578,7 @@ class LoginManager: ObservableObject {
         
         if let refreshToken = loginData["refreshToken"] as? String {
             userDefaults.set(refreshToken, forKey: "refreshToken")
+            saveToKeychain(key: "refreshToken", value: refreshToken)
             print("Saved refreshToken to UserDefaults: \(refreshToken)")
         }
         

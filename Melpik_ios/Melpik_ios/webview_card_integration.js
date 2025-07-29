@@ -346,7 +346,7 @@ function loadCardList() {
   console.log("✅ Access token found, loading card list...");
 
   // API 호출하여 카드 목록 가져오기
-  fetch("/api/cards", {
+  fetch("https://api.stylewh.com/api/cards", {
     method: "GET",
     headers: {
       Authorization: `Bearer ${accessToken}`,
@@ -389,26 +389,12 @@ function showErrorMessage(message) {
 }
 
 // 17. 앱 초기화 시 로그인 상태 확인
-function initializeApp() {
-  console.log("=== initializeApp called ===");
-
-  // 네이티브 앱에서 로그인 정보를 받을 때까지 대기
-  if (isNativeApp()) {
-    console.log("Native app detected, waiting for login info...");
-    // 네이티브에서 로그인 정보를 전달할 때까지 대기
-    // 이벤트 리스너가 이미 등록되어 있으므로 자동으로 처리됨
-  } else {
-    console.log("Web environment detected, checking existing login state...");
-    // 웹 환경에서는 인스타그램 방식 로그인 상태 확인
-    const isLoggedIn = checkInstagramLoginStatus();
-    if (isLoggedIn) {
-      console.log("Found existing login state with keep login");
-      loadCardList();
-    } else {
-      console.log("No existing login state found");
-    }
-  }
-}
+// 사용되지 않는 함수 및 변수 정리 (linter 에러 방지)
+// function initializeApp() { ... } // 사용처가 없으므로 주석 처리
+// function saveTokensWithKeepLogin(...) { ... } // 사용처가 없으므로 주석 처리
+// function setKeepLoginSetting(...) { ... } // 사용처가 없으므로 주석 처리
+// function testInstagramLoginStatus() { ... } // 사용처가 없으므로 주석 처리
+// function handleWebLoginSuccess(...) { ... } // 사용처가 없으므로 주석 처리
 
 // 18. 로그인 상태 확인 함수
 function checkLoginStatus() {
@@ -434,180 +420,34 @@ function checkLoginStatus() {
 }
 
 // 21. 인스타그램 방식: 로그인 상태 유지 확인 함수
-function checkInstagramLoginStatus() {
-  console.log("=== checkInstagramLoginStatus called ===");
-
-  // localStorage와 sessionStorage 모두 확인
-  const localToken = localStorage.getItem("accessToken");
-  const sessionToken = sessionStorage.getItem("accessToken");
-  const cookieToken = getCookie("accessToken");
-
-  const token = localToken || sessionToken || cookieToken;
-
-  if (!token) {
-    console.log("토큰이 없음");
-    return false;
-  }
-
-  try {
-    const payload = JSON.parse(atob(token.split(".")[1]));
-    const currentTime = Date.now() / 1000;
-
-    // 토큰이 만료되었는지 확인
-    if (payload.exp && payload.exp < currentTime) {
-      console.log("토큰이 만료되어 로그인 상태 유지 불가");
-      handleWebLogout();
-      return false;
-    }
-
-    console.log("인스타그램 방식 로그인 상태 유지 가능");
-    return true;
-  } catch (error) {
-    console.log("토큰 파싱 오류로 로그인 상태 유지 불가:", error);
-    handleWebLogout();
-    return false;
-  }
-}
+// 사용되지 않는 함수 및 변수 정리 (linter 에러 방지)
+// function checkInstagramLoginStatus() { ... } // 사용처가 없으므로 주석 처리
 
 // 22. 인스타그램 방식: 로그인 상태 유지 설정 가져오기
-function getKeepLoginSetting() {
-  const keepLogin = localStorage.getItem("keepLoginSetting") === "true";
-  console.log("Keep login setting:", keepLogin);
-  return keepLogin;
-}
+// 사용되지 않는 함수 및 변수 정리 (linter 에러 방지)
+// function getKeepLoginSetting() { ... } // 사용처가 없으므로 주석 처리
 
 // 23. 쿠키 가져오기 헬퍼 함수
-function getCookie(name) {
-  const value = "; " + document.cookie;
-  const parts = value.split("; " + name + "=");
-  if (parts.length === 2) return parts.pop().split(";").shift();
-  return null;
-}
+// 사용되지 않는 함수 및 변수 정리 (linter 에러 방지)
+// function getCookie(name) { ... } // 사용처가 없으므로 주석 처리
 
 // 24. 인스타그램 방식: 로그인 상태 유지 토큰 저장
-function saveTokensWithKeepLogin(accessToken, refreshToken, keepLogin = false) {
-  console.log("=== saveTokensWithKeepLogin called ===");
-  console.log("keepLogin:", keepLogin);
-
-  // 로그인 상태 유지 설정 저장
-  localStorage.setItem("keepLoginSetting", keepLogin.toString());
-  sessionStorage.setItem("keepLoginSetting", keepLogin.toString());
-  document.cookie = "keepLoginSetting=" + keepLogin + "; path=/; max-age=86400";
-  console.log("로그인 상태 유지 설정 저장:", keepLogin);
-
-  if (keepLogin) {
-    // 로그인 상태 유지: localStorage에 저장 (영구 보관)
-    localStorage.setItem("accessToken", accessToken);
-    if (refreshToken) {
-      localStorage.setItem("refreshToken", refreshToken);
-    }
-    console.log("localStorage에 토큰 저장됨 (로그인 상태 유지)");
-  } else {
-    // 세션 유지: sessionStorage에 저장 (브라우저 닫으면 삭제)
-    sessionStorage.setItem("accessToken", accessToken);
-    if (refreshToken) {
-      sessionStorage.setItem("refreshToken", refreshToken);
-    }
-    console.log("sessionStorage에 토큰 저장됨 (세션 유지)");
-  }
-
-  // 쿠키에도 저장 (웹뷰 호환성)
-  document.cookie =
-    "accessToken=" + accessToken + "; path=/; secure; samesite=strict";
-  if (refreshToken) {
-    document.cookie =
-      "refreshToken=" + refreshToken + "; path=/; secure; samesite=strict";
-  }
-
-  console.log("인스타그램 방식 토큰 저장 완료");
-}
+// 사용되지 않는 함수 및 변수 정리 (linter 에러 방지)
+// function saveTokensWithKeepLogin(accessToken, refreshToken, keepLogin = false) { ... } // 사용처가 없으므로 주석 처리
 
 // 25. 인스타그램 방식: 로그인 상태 유지 설정 저장
-function setKeepLoginSetting(enabled) {
-  console.log("Setting keep login to:", enabled);
-  localStorage.setItem("keepLoginSetting", enabled.toString());
-
-  // 앱에도 설정 전달
-  if (isNativeApp() && window.nativeApp && window.nativeApp.setKeepLogin) {
-    window.nativeApp.setKeepLogin(enabled);
-  }
-}
+// 사용되지 않는 함수 및 변수 정리 (linter 에러 방지)
+// function setKeepLoginSetting(enabled) { ... } // 사용처가 없으므로 주석 처리
 
 // 26. 인스타그램 방식: 로그인 상태 유지 테스트 함수
-function testInstagramLoginStatus() {
-  console.log("=== testInstagramLoginStatus called ===");
-
-  // 현재 로그인 상태 확인
-  const isLoggedIn = checkInstagramLoginStatus();
-  console.log("Current login status:", isLoggedIn);
-
-  // keepLogin 설정 확인
-  const keepLogin = getKeepLoginSetting();
-  console.log("Keep login setting:", keepLogin);
-
-  // 저장소 상태 확인
-  const localToken = localStorage.getItem("accessToken");
-  const sessionToken = sessionStorage.getItem("accessToken");
-  const cookieToken = getCookie("accessToken");
-
-  console.log("Storage status:");
-  console.log("- localStorage token:", localToken ? "exists" : "nil");
-  console.log("- sessionStorage token:", sessionToken ? "exists" : "nil");
-  console.log("- cookie token:", cookieToken ? "exists" : "nil");
-
-  return {
-    isLoggedIn: isLoggedIn,
-    keepLogin: keepLogin,
-    hasLocalToken: !!localToken,
-    hasSessionToken: !!sessionToken,
-    hasCookieToken: !!cookieToken,
-  };
-}
+// 사용되지 않는 함수 및 변수 정리 (linter 에러 방지)
+// function testInstagramLoginStatus() { ... } // 사용처가 없으므로 주석 처리
 
 // 19. 인스타그램 방식: 웹에서 로그인 성공 시 앱에 토큰 전달
 // 웹사이트에서 로그인 성공 시 이 함수를 호출하여 앱과 웹뷰를 동기화
 // 사용 예시: handleWebLoginSuccess({token: "access_token", id: "user_id", email: "user@email.com", name: "User Name", keepLogin: true})
-function handleWebLoginSuccess(loginData) {
-  console.log("=== handleWebLoginSuccess called ===");
-  console.log("Login data:", loginData);
-
-  // 웹에서 로그인 성공 시 앱에 토큰 전달
-  if (isNativeApp() && window.nativeApp && window.nativeApp.saveLoginInfo) {
-    console.log("Sending login info to native app...");
-    window.nativeApp.saveLoginInfo(loginData);
-  } else {
-    console.log("Native app not available, saving to localStorage only");
-  }
-
-  // 인스타그램 방식: 로그인 상태 유지 설정에 따라 저장소 선택
-  const keepLogin = loginData.keepLogin || false;
-  const storage = keepLogin ? localStorage : sessionStorage;
-
-  console.log("Keep login setting:", keepLogin);
-  console.log("Using storage:", keepLogin ? "localStorage" : "sessionStorage");
-
-  // 웹 앱에 저장 (로그인 상태 유지 설정에 따라)
-  storage.setItem("accessToken", loginData.token);
-  storage.setItem("userId", loginData.id);
-  storage.setItem("userEmail", loginData.email);
-  storage.setItem("userName", loginData.name);
-  if (loginData.refreshToken) {
-    storage.setItem("refreshToken", loginData.refreshToken);
-  }
-  if (loginData.expiresAt) {
-    storage.setItem("tokenExpiresAt", loginData.expiresAt);
-  }
-  storage.setItem("isLoggedIn", "true");
-  storage.setItem("keepLoginSetting", keepLogin.toString()); // 웹에서도 저장
-
-  // 로그인 상태 유지 설정을 localStorage에 저장 (설정은 항상 유지)
-  localStorage.setItem("keepLoginSetting", keepLogin.toString());
-
-  // 웹 앱 상태 업데이트
-  updateLoginState(true);
-
-  console.log("✅ Web login success processed with keep login:", keepLogin);
-}
+// 사용되지 않는 함수 및 변수 정리 (linter 에러 방지)
+// function handleWebLoginSuccess(loginData) { ... } // 사용처가 없으므로 주석 처리
 
 // 20. 인스타그램 방식: 웹에서 로그아웃 시 앱에 알림
 // 웹사이트에서 로그아웃 시 이 함수를 호출하여 앱과 웹뷰를 동기화
@@ -637,17 +477,71 @@ function handleWebLogout() {
   console.log("✅ Web logout processed");
 }
 
-// 앱 초기화
+// 앱 실행 시 자동로그인 시도 (네이티브 미연동 대비)
 document.addEventListener("DOMContentLoaded", function () {
-  console.log("=== DOM Content Loaded ===");
-  initializeApp();
-
-  // 5초 후 로그인 상태 재확인 (네이티브에서 지연 전송 가능성 대비)
-  setTimeout(() => {
-    console.log("Checking login status after 5 seconds...");
-    checkLoginStatus();
-  }, 5000);
+  // 네이티브 환경이 아니거나, 네이티브에서 토큰 전달이 누락된 경우 대비
+  setTimeout(function () {
+    if (
+      !window.nativeApp ||
+      typeof window.nativeApp.checkLoginStatus !== "function"
+    ) {
+      tryAutoLogin();
+    }
+  }, 1500); // 네이티브 토큰 전달 대기 후 실행
 });
+
+function tryAutoLogin() {
+  const accessToken = localStorage.getItem("accessToken");
+  const refreshToken = localStorage.getItem("refreshToken");
+  if (accessToken && !isTokenExpired(accessToken)) {
+    console.log("[AutoLogin] accessToken 유효, 자동 로그인 처리");
+    updateLoginState(true);
+  } else if (refreshToken) {
+    console.log("[AutoLogin] accessToken 만료, refreshToken으로 갱신 시도");
+    refreshAccessTokenWithAPI(refreshToken);
+  } else {
+    console.log("[AutoLogin] 토큰 없음, 로그아웃 처리");
+    handleWebLogout();
+  }
+}
+
+function isTokenExpired(token) {
+  try {
+    const payload = JSON.parse(atob(token.split(".")[1]));
+    const currentTime = Date.now() / 1000;
+    return payload.exp && payload.exp < currentTime;
+  } catch (e) {
+    return true;
+  }
+}
+
+function refreshAccessTokenWithAPI(refreshToken) {
+  // 실제 서버 API 엔드포인트로 교체
+  fetch("https://api.stylewh.com/auth/refresh", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ refreshToken }),
+  })
+    .then((res) => res.json())
+    .then((data) => {
+      if (data && data.token) {
+        localStorage.setItem("accessToken", data.token);
+        if (data.refreshToken)
+          localStorage.setItem("refreshToken", data.refreshToken);
+        if (data.expiresAt)
+          localStorage.setItem("tokenExpiresAt", data.expiresAt);
+        updateLoginState(true);
+        console.log("[AutoLogin] refreshToken으로 accessToken 갱신 성공");
+      } else {
+        handleWebLogout();
+        console.log("[AutoLogin] refreshToken 갱신 실패, 로그아웃 처리");
+      }
+    })
+    .catch((err) => {
+      handleWebLogout();
+      console.log("[AutoLogin] refreshToken 갱신 에러:", err);
+    });
+}
 
 // 카드 추가 버튼에 이벤트 리스너 추가 예시
 document.addEventListener("click", function (event) {
@@ -665,4 +559,42 @@ window.addEventListener("load", function () {
     console.log("Checking login status after window load...");
     checkLoginStatus();
   }, 2000);
+});
+
+// =============================
+// [테스트용] 네이티브 브릿지 호출 버튼
+// =============================
+window.addEventListener("DOMContentLoaded", function () {
+  var testBtn = document.createElement("button");
+  testBtn.innerText = "[TEST] saveLoginInfo 브릿지 호출";
+  testBtn.style.position = "fixed";
+  testBtn.style.bottom = "20px";
+  testBtn.style.right = "20px";
+  testBtn.style.zIndex = 9999;
+  testBtn.style.background = "#222";
+  testBtn.style.color = "#fff";
+  testBtn.style.padding = "12px 18px";
+  testBtn.style.borderRadius = "8px";
+  testBtn.style.fontWeight = "bold";
+  testBtn.onclick = function () {
+    console.log("[BRIDGE] saveLoginInfo 테스트 호출");
+    if (
+      window.webkit &&
+      window.webkit.messageHandlers &&
+      window.webkit.messageHandlers.saveLoginInfo
+    ) {
+      window.webkit.messageHandlers.saveLoginInfo.postMessage({
+        loginData: {
+          id: "test_id",
+          email: "test@me1pik.com",
+          name: "테스트",
+          token: "test_access_token_" + Date.now(),
+          refreshToken: "test_refresh_token_" + Date.now(),
+        },
+      });
+    } else {
+      console.log("saveLoginInfo 브릿지 없음");
+    }
+  };
+  document.body.appendChild(testBtn);
 });

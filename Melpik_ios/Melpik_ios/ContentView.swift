@@ -252,6 +252,8 @@ struct WebView: UIViewRepresentable {
         
         // 네이티브 기능들을 JavaScript에 노출
         contentController.add(context.coordinator, name: "nativeBridge")
+        // ✅ saveLoginInfo 브릿지도 추가 등록
+        contentController.add(context.coordinator, name: "saveLoginInfo")
         
         // JavaScript 함수들 추가 (인스타그램 방식)
         let script = """
@@ -377,7 +379,7 @@ struct WebView: UIViewRepresentable {
             sessionStorage.removeItem('tokenExpiresAt');
             sessionStorage.removeItem('isLoggedIn');
             
-            // 쿠키 제거
+            // 쿠키에서도 삭제
             document.cookie = 'accessToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
             document.cookie = 'userId=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
             document.cookie = 'userEmail=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT';
@@ -602,19 +604,8 @@ struct WebView: UIViewRepresentable {
                 print("Login page detected - auto authentication disabled")
             }
 
-            // 웹뷰 로딩 완료 시 로그인 상태 확인 및 전달 (지연 시간 단축)
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                print("Checking login status after webview load...")
-                self.parent.loginManager.checkLoginStatus(webView: self.parent.webView)
-                
-                // 추가로 2초 후 한 번 더 확인 (웹사이트가 완전히 로드된 후)
-                DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                    if self.parent.loginManager.isLoggedIn {
-                        print("Re-checking login status after 2 seconds...")
-                        self.parent.loginManager.sendLoginInfoToWeb(webView: self.parent.webView)
-                    }
-                }
-            }
+            // 웹뷰 로딩 완료 시 로그인 상태 무조건 전달
+            parent.loginManager.sendLoginInfoToWeb(webView: parent.webView)
         }
         
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
@@ -711,35 +702,13 @@ struct WebView: UIViewRepresentable {
                 }
                 
             case "saveLoginInfo":
+                print("[BRIDGE] saveLoginInfo 호출됨", body)
                 if let loginData = body["loginData"] as? [String: Any] {
+                    print("[BRIDGE] 전달받은 loginData:", loginData)
                     parent.loginManager.saveLoginInfo(loginData)
-                    
-                    // 웹뷰에 로그인 정보 전달
-                    let loginInfo = [
-                        "type": "loginInfoReceived",
-                        "detail": [
-                            "isLoggedIn": true,
-                            "userInfo": loginData
-                        ]
-                    ] as [String : Any]
-                    
-                    if let jsonData = try? JSONSerialization.data(withJSONObject: loginInfo),
-                       let jsonString = String(data: jsonData, encoding: .utf8) {
-                        
-                        let script = """
-                            window.dispatchEvent(new CustomEvent('loginInfoReceived', {
-                                detail: \(jsonString)
-                            }));
-                        """
-                        
-                        parent.webView.evaluateJavaScript(script) { result, error in
-                            if let error = error {
-                                print("Error sending login info to web: \(error)")
-                            } else {
-                                print("Login info sent to web successfully")
-                            }
-                        }
-                    }
+                    print("[BRIDGE] saveLoginInfo → saveLoginState 호출 완료")
+                } else {
+                    print("[BRIDGE] loginData 파싱 실패", body)
                 }
                 
             case "getLoginInfo":
