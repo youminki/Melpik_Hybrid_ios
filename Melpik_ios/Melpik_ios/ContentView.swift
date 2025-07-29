@@ -218,6 +218,9 @@ struct WebView: UIViewRepresentable {
     let onError: (String) -> Void
     let onOffline: () -> Void
     
+    // 앱 생명주기 이벤트 처리
+    @Environment(\.scenePhase) private var scenePhase
+    
     func makeUIView(context: Context) -> WKWebView {
         // 웹뷰 설정
         webView.navigationDelegate = context.coordinator
@@ -252,8 +255,15 @@ struct WebView: UIViewRepresentable {
         
         // 네이티브 기능들을 JavaScript에 노출
         contentController.add(context.coordinator, name: "nativeBridge")
+        print("✅ nativeBridge 메시지 핸들러 등록됨")
+        
         // ✅ saveLoginInfo 브릿지도 추가 등록
         contentController.add(context.coordinator, name: "saveLoginInfo")
+        print("✅ saveLoginInfo 메시지 핸들러 등록됨")
+        
+        // 웹뷰 로딩 완료 알림
+        contentController.add(context.coordinator, name: "webViewDidFinishLoading")
+        print("✅ webViewDidFinishLoading 메시지 핸들러 등록됨")
         
         // JavaScript 함수들 추가 (인스타그램 방식)
         let script = """
@@ -263,6 +273,11 @@ struct WebView: UIViewRepresentable {
                 setTimeout(function() {
                     window.nativeApp.checkLoginStatus();
                 }, 1000);
+            }
+            
+            // 웹뷰 로딩 완료 알림
+            if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.webViewDidFinishLoading) {
+                window.webkit.messageHandlers.webViewDidFinishLoading.postMessage({});
             }
         });
         
@@ -318,6 +333,24 @@ struct WebView: UIViewRepresentable {
                 window.userEmail = userInfo.email;
                 window.userName = userInfo.name;
                 window.isLoggedIn = true;
+                
+                // iOS 앱에 로그인 정보 전달 (refreshToken 포함)
+                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.saveLoginInfo) {
+                    const loginData = {
+                        id: userInfo.id,
+                        email: userInfo.email,
+                        name: userInfo.name,
+                        token: userInfo.token,
+                        refreshToken: userInfo.refreshToken || localStorage.getItem('refreshToken') || '',
+                        expiresAt: userInfo.expiresAt,
+                        keepLogin: true
+                    };
+                    
+                    console.log('iOS 앱에 전달할 로그인 데이터:', loginData);
+                    window.webkit.messageHandlers.saveLoginInfo.postMessage({
+                        loginData: loginData
+                    });
+                }
                 
                 console.log('✅ Login info saved to all storages');
                 
@@ -566,12 +599,43 @@ struct WebView: UIViewRepresentable {
                 window.webkit.messageHandlers.nativeBridge.postMessage({
                     action: 'forceLoginInfo'
                 });
+            },
+            
+            // 로그인 정보 요청 함수
+            requestLoginInfo: function() {
+                console.log('=== 웹에서 로그인 정보 요청 ===');
+                if (window.webkit && window.webkit.messageHandlers && window.webkit.messageHandlers.nativeBridge) {
+                    window.webkit.messageHandlers.nativeBridge.postMessage({
+                        action: 'requestLoginInfo'
+                    });
+                } else {
+                    console.log('Native bridge not available');
+                }
             }
         };
         """
         
         let userScript = WKUserScript(source: script, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
         contentController.addUserScript(userScript)
+        
+        // 로그인 페이지에서 자동으로 로그인 정보 요청
+        let autoLoginScript = """
+        (function() {
+            // 페이지 로드 시 로그인 페이지인지 확인
+            if (window.location.pathname === '/login' || window.location.pathname.includes('/login')) {
+                console.log('로그인 페이지 감지 - 로그인 정보 요청');
+                // 약간의 지연 후 로그인 정보 요청
+                setTimeout(function() {
+                    if (window.nativeBridge && window.nativeBridge.requestLoginInfo) {
+                        window.nativeBridge.requestLoginInfo();
+                    }
+                }, 1000);
+            }
+        })();
+        """
+        
+        let autoLoginUserScript = WKUserScript(source: autoLoginScript, injectionTime: .atDocumentEnd, forMainFrameOnly: false)
+        contentController.addUserScript(autoLoginUserScript)
     }
     
     // MARK: - Coordinator
@@ -599,13 +663,9 @@ struct WebView: UIViewRepresentable {
             let currentURL = webView.url?.absoluteString ?? "nil"
             print("Current URL: \(currentURL)")
 
-            // 로그인 페이지 진입 시 자동 인증 비활성화
-            if currentURL.starts(with: "https://me1pik.com/login") {
-                print("Login page detected - auto authentication disabled")
-            }
-
-            // 웹뷰 로딩 완료 시 로그인 상태 무조건 전달
-            parent.loginManager.sendLoginInfoToWeb(webView: parent.webView)
+            // 로그인 정보 자동 전달 제거 - 무한 렌더링 방지
+            // 웹에서 필요할 때만 요청하도록 변경
+            print("WebView loaded - login info transmission disabled to prevent infinite rendering")
         }
         
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
@@ -639,15 +699,51 @@ struct WebView: UIViewRepresentable {
         
         // MARK: - WKScriptMessageHandler
         func userContentController(_ userContentController: WKUserContentController, didReceive message: WKScriptMessage) {
-            guard let body = message.body as? [String: Any],
-                  let action = body["action"] as? String else { return }
+            print("=== [COORDINATOR] 메시지 수신됨 ===")
+            print("메시지 이름:", message.name)
+            print("메시지 body:", message.body)
             
-            DispatchQueue.main.async {
-                self.handleJavaScriptMessage(action: action, body: body)
+            let body = message.body as? [String: Any] ?? [:]
+            
+            switch message.name {
+            case "nativeBridge":
+                handleNativeBridgeMessage(body)
+                
+            case "saveLoginInfo":
+                print("=== [COORDINATOR] saveLoginInfo 메시지 처리 시작 ===")
+                print("전체 body:", body)
+                if let loginData = body["loginData"] as? [String: Any] {
+                    print("=== [COORDINATOR] 전달받은 loginData ===")
+                    print("id:", loginData["id"] ?? "nil")
+                    print("email:", loginData["email"] ?? "nil")
+                    print("name:", loginData["name"] ?? "nil")
+                    print("token:", loginData["token"] ?? "nil")
+                    print("refreshToken:", loginData["refreshToken"] ?? "nil")
+                    print("expiresAt:", loginData["expiresAt"] ?? "nil")
+                    print("keepLogin:", loginData["keepLogin"] ?? "nil")
+                    
+                    parent.loginManager.saveLoginInfo(loginData)
+                    print("=== [COORDINATOR] saveLoginInfo → saveLoginState 호출 완료 ===")
+                } else {
+                    print("=== [COORDINATOR] loginData 파싱 실패 ===")
+                    print("body 타입:", type(of: body))
+                    print("body 내용:", body)
+                }
+                
+            case "webViewDidFinishLoading":
+                // 웹뷰 로딩 완료 알림
+                NotificationCenter.default.post(name: NSNotification.Name("WebViewDidFinishLoading"), object: nil)
+                print("WebView 로딩 완료 알림 전송")
+                
+            default:
+                print("=== [COORDINATOR] 알 수 없는 메시지:", message.name)
+                break
             }
         }
         
-        private func handleJavaScriptMessage(action: String, body: [String: Any]) {
+        private func handleNativeBridgeMessage(_ body: [String: Any]) {
+            guard let action = body["action"] as? String else { return }
+            
             switch action {
             case "requestPushPermission":
                 parent.appState.requestPushNotificationPermission()
@@ -700,21 +796,6 @@ struct WebView: UIViewRepresentable {
                     let script = "window.dispatchEvent(new CustomEvent('appInfoReceived', { detail: \(jsonString) }));"
                     parent.webView.evaluateJavaScript(script)
                 }
-                
-            case "saveLoginInfo":
-                print("[BRIDGE] saveLoginInfo 호출됨", body)
-                if let loginData = body["loginData"] as? [String: Any] {
-                    print("[BRIDGE] 전달받은 loginData:", loginData)
-                    parent.loginManager.saveLoginInfo(loginData)
-                    print("[BRIDGE] saveLoginInfo → saveLoginState 호출 완료")
-                } else {
-                    print("[BRIDGE] loginData 파싱 실패", body)
-                }
-                
-            case "getLoginInfo":
-                let loginInfo = parent.loginManager.getLoginInfo()
-                let script = "window.dispatchEvent(new CustomEvent('loginInfoReceived', { detail: \(loginInfo) }));"
-                parent.webView.evaluateJavaScript(script)
                 
             case "logout":
                 parent.loginManager.logout()
@@ -807,6 +888,11 @@ struct WebView: UIViewRepresentable {
                     parent.loginManager.sendLoginInfoToWeb(webView: parent.webView)
                 }
                 
+            case "requestLoginInfo":
+                // 웹에서 로그인 정보 요청
+                parent.loginManager.requestLoginInfoFromWeb(webView: parent.webView)
+                print("Requesting login info from web")
+                
             default:
                 break
             }
@@ -859,6 +945,9 @@ struct ContentViewMain: View {
     @StateObject private var privacyManager = PrivacyManager()
     @StateObject private var cacheManager = CacheManager.shared
     @StateObject private var performanceMonitor = PerformanceMonitor.shared
+    
+    // 앱 생명주기 이벤트 처리
+    @Environment(\.scenePhase) private var scenePhase
     
     @State private var isLoading = true
     @State private var canGoBack = false
@@ -1020,6 +1109,18 @@ struct ContentViewMain: View {
                 sendKeepLoginSettingToWeb(keepLogin: keepLogin)
             }
         }
+        .onChange(of: scenePhase) { _, _ in
+            handleAppLifecycleChange()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: NSNotification.Name("WebViewDidFinishLoading"))) { _ in
+            print("=== WebView 로딩 완료 - 로그인 상태 확인 및 refreshToken 동기화 ===")
+            
+            // 로그인 상태 확인
+            loginManager.checkLoginStatus(webView: webViewStore.webView)
+            
+            // refreshToken 동기화
+            loginManager.syncRefreshTokenFromWebView(webView: webViewStore.webView)
+        }
     }
     
     private func setupApp() {
@@ -1168,6 +1269,29 @@ struct ContentViewMain: View {
             guard let url = URL(string: Constants.initialURL) else { return }
             let request = URLRequest(url: url, cachePolicy: .reloadIgnoringLocalCacheData)
             self.webViewStore.webView.load(request)
+        }
+    }
+    
+    // MARK: - 앱 생명주기 이벤트 처리
+    private func handleAppLifecycleChange() {
+        switch scenePhase {
+        case .active:
+            print("🔄 App became active - checking token persistence")
+            // 앱이 활성화될 때 토큰 저장 상태 확인
+            loginManager.verifyTokenStorage()
+            
+        case .inactive:
+            print("🔄 App became inactive - ensuring token persistence")
+            // 앱이 비활성화될 때 토큰 저장 보장
+            loginManager.ensureTokenPersistence()
+            
+        case .background:
+            print("🔄 App entered background - final token persistence check")
+            // 앱이 백그라운드로 갈 때 최종 토큰 저장 확인
+            loginManager.ensureTokenPersistence()
+            
+        @unknown default:
+            break
         }
     }
 } 

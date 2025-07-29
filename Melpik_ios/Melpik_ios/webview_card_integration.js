@@ -583,13 +583,22 @@ window.addEventListener("DOMContentLoaded", function () {
       window.webkit.messageHandlers &&
       window.webkit.messageHandlers.saveLoginInfo
     ) {
+      const testRefreshToken =
+        "test_refresh_token_" +
+        Date.now() +
+        "_" +
+        Math.random().toString(36).substr(2, 9);
+      console.log("테스트 refreshToken 생성:", testRefreshToken);
+
       window.webkit.messageHandlers.saveLoginInfo.postMessage({
         loginData: {
           id: "test_id",
           email: "test@me1pik.com",
           name: "테스트",
           token: "test_access_token_" + Date.now(),
-          refreshToken: "test_refresh_token_" + Date.now(),
+          refreshToken: testRefreshToken,
+          expiresAt: new Date(Date.now() + 3600000).toISOString(),
+          keepLogin: true,
         },
       });
     } else {

@@ -25,6 +25,12 @@ class AppDelegate: NSObject, UIApplicationDelegate, UNUserNotificationCenterDele
     let loginManager = LoginManager()
     
     func application(_ application: UIApplication, didFinishLaunchingWithOptions launchOptions: [UIApplication.LaunchOptionsKey : Any]? = nil) -> Bool {
+        print("앱이실행되었습니다") // 앱 실행 확인용 로그
+
+        let testToken = "test_token_\(Date().timeIntervalSince1970)"
+        LoginManager.shared.saveToKeychain(key: "accessToken", value: testToken)
+        let restored = LoginManager.shared.loadFromKeychain(key: "accessToken")
+        print("Keychain 테스트 저장/복원: \(restored ?? "nil")")
         
         // 푸시 알림 델리게이트 설정
         UNUserNotificationCenter.current().delegate = self

@@ -55,6 +55,7 @@
     <key>UIBackgroundModes</key>
     <array>
         <string>remote-notification</string>
+        <string>background-processing</string>
     </array>
     
     <!-- 앱 그룹 (필요시) -->
@@ -62,6 +63,14 @@
     <array>
         <string>group.com.melpik.app</string>
     </array>
+    
+    <!-- 데이터 보호 설정 -->
+    <key>NSDataProtectionComplete</key>
+    <true/>
+    
+    <!-- 키체인 접근 설정 -->
+    <key>NSKeychainAccessibility</key>
+    <string>kSecAttrAccessibleAfterFirstUnlock</string>
     
     <key>CFBundleShortVersionString</key>
     <string>1.0.3</string>
